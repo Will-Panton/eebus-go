@@ -19,3 +19,7 @@ go.work
 
 # VS Code
 .vscode
+*.DS_Store
+
+# node files
+node_modules

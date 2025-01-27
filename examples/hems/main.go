@@ -117,22 +117,24 @@ func (h *hems) run() {
 	h.myService.AddUseCase(h.uccemvapd)
 
 	// Initialize local server data
-	_ = h.uccslpc.SetConsumptionNominalMax(32000)
+	_ = h.uccslpc.SetConsumptionNominalMax(34500)
 	_ = h.uccslpc.SetConsumptionLimit(ucapi.LoadLimit{
 		Value:        4200,
+		Duration:     2 * time.Hour,
 		IsChangeable: true,
-		IsActive:     false,
+		IsActive:     true,
 	})
 	_ = h.uccslpc.SetFailsafeConsumptionActivePowerLimit(4200, true)
 	_ = h.uccslpc.SetFailsafeDurationMinimum(2*time.Hour, true)
 
 	_ = h.uccslpp.SetProductionNominalMax(10000)
 	_ = h.uccslpp.SetProductionLimit(ucapi.LoadLimit{
-		Value:        10000,
+		Value:        3000,
+		Duration:     2 * time.Hour,
 		IsChangeable: true,
-		IsActive:     false,
+		IsActive:     true,
 	})
-	_ = h.uccslpp.SetFailsafeProductionActivePowerLimit(4200, true)
+	_ = h.uccslpp.SetFailsafeProductionActivePowerLimit(3000, true)
 	_ = h.uccslpp.SetFailsafeDurationMinimum(2*time.Hour, true)
 
 	if len(remoteSki) == 0 {
@@ -162,6 +164,24 @@ func (h *hems) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 		if currentLimit, err := h.uccslpc.ConsumptionLimit(); err == nil {
 			fmt.Println("New LPC Limit set to", currentLimit.Value, "W")
 		}
+	case cslpc.DataUpdateFailsafeConsumptionActivePowerLimit:
+		if currentLimit, changeable, err := h.uccslpc.FailsafeConsumptionActivePowerLimit(); err == nil {
+			fmt.Println("New LPC Failsafe Limit set to", currentLimit, "W")
+			if changeable {
+				fmt.Println("New LPC Failsafe Limit set changeable")
+			} else {
+				fmt.Println("New LPC Failsafe Limit set not changeable")
+			}
+		}
+	case cslpc.DataUpdateFailsafeDurationMinimum:
+		if currentDuration, changeable, err := h.uccslpc.FailsafeDurationMinimum(); err == nil {
+			fmt.Println("New LPC Failsafe Duration set to", currentDuration)
+			if changeable {
+				fmt.Println("New LPC Failsafe Duration set changeable")
+			} else {
+				fmt.Println("New LPC Failsafe Duration set not changeable")
+			}
+		}
 	}
 }
 
@@ -181,6 +201,24 @@ func (h *hems) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 	case cslpp.DataUpdateLimit:
 		if currentLimit, err := h.uccslpp.ProductionLimit(); err == nil {
 			fmt.Println("New LPP Limit set to", currentLimit.Value, "W")
+		}
+	case cslpp.DataUpdateFailsafeProductionActivePowerLimit:
+		if currentLimit, changeable, err := h.uccslpp.FailsafeProductionActivePowerLimit(); err == nil {
+			fmt.Println("New LPP Failsafe Limit set to", currentLimit, "W")
+			if changeable {
+				fmt.Println("New LPP Failsafe Limit set changeable")
+			} else {
+				fmt.Println("New LPP Failsafe Limit set not changeable")
+			}
+		}
+	case cslpp.DataUpdateFailsafeDurationMinimum:
+		if currentDuration, changeable, err := h.uccslpp.FailsafeDurationMinimum(); err == nil {
+			fmt.Println("New LPP Failsafe Duration set to", currentDuration)
+			if changeable {
+				fmt.Println("New LPP Failsafe Duration set changeable")
+			} else {
+				fmt.Println("New LPP Failsafe Duration set not changeable")
+			}
 		}
 	}
 }
@@ -264,9 +302,13 @@ func (h *hems) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, en
 
 // EEBUSServiceHandler
 
-func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {}
+func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
+	fmt.Println("RemoteSKIConnected", ski)
+}
 
-func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {}
+func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
+	fmt.Println("RemoteSKIDisconnected", ski)
+}
 
 func (h *hems) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
 }
@@ -322,19 +364,19 @@ func main() {
 // Logging interface
 
 func (h *hems) Trace(args ...interface{}) {
-	h.print("TRACE", args...)
+	//h.print("TRACE", args...)
 }
 
 func (h *hems) Tracef(format string, args ...interface{}) {
-	h.printFormat("TRACE", format, args...)
+	//h.printFormat("TRACE", format, args...)
 }
 
 func (h *hems) Debug(args ...interface{}) {
-	h.print("DEBUG", args...)
+	//h.print("DEBUG", args...)
 }
 
 func (h *hems) Debugf(format string, args ...interface{}) {
-	h.printFormat("DEBUG", format, args...)
+	//h.printFormat("DEBUG", format, args...)
 }
 
 func (h *hems) Info(args ...interface{}) {
