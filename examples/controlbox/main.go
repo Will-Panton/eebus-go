@@ -635,7 +635,13 @@ func setupRoutes(h *controlbox) {
 	})
 }
 
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+}
+
 func serveWs(h *controlbox, w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("upgrade error:", err)
