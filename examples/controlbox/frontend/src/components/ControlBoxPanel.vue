@@ -10,34 +10,53 @@
     <h3>not running</h3>
   </div>
   <div v-else>
-    <div v-if="0 < remoteEntities.length" class="devices">
-      <label class="device-select-label">Connected Device:</label>
-      <VueSelect v-model="ski" :options="optionEntities"
-        placeholder="Select a connected device" @option-selected="deviceSelected">
+    <div v-if="0 < remoteServices?.length" class="devices">
+      <label class="device-select-label">Remote Device:</label>
+      <VueSelect v-model="selectedSki" :options="optionServices"
+        placeholder="Select a device" @option-selected="serviceSelected">
       </VueSelect>
+    </div>
+    <div v-else>
+      <h3>No devices found</h3>
+    </div>
+
+    <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
-      <label class="device-select-label">{{ ski }}</label>
+      <label class="device-select-label">{{ selectedSki }}</label>
+    </div>
+
+    <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
+      <label class="device-select-label">Entities:</label>
+      <VueSelect v-model="selectedEntity" :options="optionEntities"
+        v-bind:placeholder="optionEntities.length + (optionEntities.length == 1 ? ' entity' : ' entities')">
+      </VueSelect>
+      <label class="device-select-label">Device Type:</label>
+      <label class="device-select-label">{{ deviceType }}</label>
+      <label class="device-select-label">Features:</label>
+      <VueSelect :options="optionFeatures"
+        v-bind:placeholder="optionFeatures.length == 0 ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
+      </VueSelect>
     </div>
     <div class="usecases">
-      <div v-if="'' < ski">
+      <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPC']">
         <h3>Consumption Limit</h3>
         <div class="form-line">
           <label>Active:</label>
-          <input type="checkbox" v-model="dd[ski]['LPC'].IsActive"/>
+          <input type="checkbox" v-model="selectedDd['LPC'].IsActive"/>
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="dd[ski]['LPC'].Value" />
+          <input type="number" v-model="selectedDd['LPC'].Value" />
           <button class="three-lines" type="button" @click="setConsumptionLimit">Set</button>
 
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="dd[ski]['LPC'].Duration" />
+          <input type="number" v-model="selectedDd['LPC'].Duration" />
 
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="dd[ski]['LPC'].FSValue" />
+          <input type="number" v-model="selectedDd['LPC'].FSValue" />
           <button type="button" @click="setConsumptionFailsafeLimit">Set</button>
 
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="dd[ski]['LPC'].FSDuration" />
+          <input type="number" v-model="selectedDd['LPC'].FSDuration" />
           <button type="button" @click="setConsumptionFailsafeDuration">Set</button>
 
           <label>Nominal Maximum [W]:</label>
@@ -51,25 +70,25 @@
           <div></div>
         </div>
       </div>
-      <div v-if="'' < ski">
+      <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPP']">
         <h3>Production Limit</h3>
         <div class="form-line">
           <label>Active:</label>
-          <input type="checkbox" v-model="dd[ski]['LPP'].IsActive"/>
+          <input type="checkbox" v-model="selectedDd['LPP'].IsActive"/>
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="dd[ski]['LPP'].Value" />
+          <input type="number" v-model="selectedDd['LPP'].Value" />
           <button class="three-lines" type="button" @click="setProductionLimit">Set</button>
           
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="dd[ski]['LPP'].Duration" />
+          <input type="number" v-model="selectedDd['LPP'].Duration" />
           
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="dd[ski]['LPP'].FSValue" />
+          <input type="number" v-model="selectedDd['LPP'].FSValue" />
           <button type="button" @click="setProductionFailsafeLimit">Set</button>
           
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="dd[ski]['LPP'].FSDuration" />
+          <input type="number" v-model="selectedDd['LPP'].FSDuration" />
           <button type="button" @click="setProductionFailsafeDuration">Set</button>
           
           <label>Nominal Maximum [W]:</label>
@@ -90,34 +109,37 @@
   import { Component, Vue, toNative } from 'vue-facing-decorator'
   import QrcodeVue from 'qrcode.vue'
   import VueSelect from 'vue3-select-component'
+  //import { reactive } from 'vue'
 
   enum MessageType {
     Text                           = 0,
     QRCode                         = 1,
     Acknowledge                    = 2,
-    EntityListChanged              = 3,
-    GetEntityList                  = 4,
-    GetAllData                     = 5,
-    SetConsumptionLimit            = 6,
-    GetConsumptionLimit            = 7,
-    SetProductionLimit             = 8,
-    GetProductionLimit             = 9,
-    SetConsumptionFailsafeValue    = 10,
-    GetConsumptionFailsafeValue    = 11,
-    SetConsumptionFailsafeDuration = 12,
-    GetConsumptionFailsafeDuration = 13,
-    SetProductionFailsafeValue     = 14,
-    GetProductionFailsafeValue     = 15,
-    SetProductionFailsafeDuration  = 16,
-    GetProductionFailsafeDuration  = 17,
-    GetConsumptionNominalMax       = 18,
-    GetProductionNominalMax        = 19,
-    GetConsumptionHeartbeat        = 20,
-    StopConsumptionHeartbeat       = 21,
-    StartConsumptionHeartbeat      = 22,
-    GetProductionHeartbeat         = 23,
-    StopProductionHeartbeat        = 24,
-    StartProductionHeartbeat       = 25
+    ServiceListChanged             = 3,
+    GetServiceList                 = 4,
+    SelectService                  = 5,
+    GetEntityInfo                  = 6,
+    GetAllData                     = 7,
+    SetConsumptionLimit            = 8,
+    GetConsumptionLimit            = 9,
+    SetProductionLimit             = 10,
+    GetProductionLimit             = 11,
+    SetConsumptionFailsafeValue    = 12,
+    GetConsumptionFailsafeValue    = 13,
+    SetConsumptionFailsafeDuration = 14,
+    GetConsumptionFailsafeDuration = 15,
+    SetProductionFailsafeValue     = 16,
+    GetProductionFailsafeValue     = 17,
+    SetProductionFailsafeDuration  = 18,
+    GetProductionFailsafeDuration  = 19,
+    GetConsumptionNominalMax       = 20,
+    GetProductionNominalMax        = 21,
+    GetConsumptionHeartbeat        = 22,
+    StopConsumptionHeartbeat       = 23,
+    StartConsumptionHeartbeat      = 24,
+    GetProductionHeartbeat         = 25,
+    StopProductionHeartbeat        = 26,
+    StartProductionHeartbeat       = 27,
   }
 
   interface Limits {
@@ -128,19 +150,33 @@
 	  FSDuration: number
   }
 
-  interface EntityDescription {
+  interface RemoteService {
+    name:       string,
+	  ski:        string,
+	  identifier: string,
+	  brand:      string,
+	  type:       string,
+	  model:      string,
+	  serial:     string,
+	  categories: number[]
+  }
+
+  interface EntityInfo {
     Name:     string,
     SKI:      string,
+    Type:     string,
+    Features: string[],
     UseCases: string[]
   }
 
   interface Message {
-    Type:        MessageType,
-    Text?:       string,
-    Limit?:      Limits,
-    Value?:      number,
-    EntityList?: EntityDescription[],
-    UseCase?:    string
+    Type:         MessageType,
+    Text?:        string,
+    Limit?:       Limits,
+    Value?:       number,
+    ServiceList?: RemoteService[],
+    EntityInfos?: EntityInfo[],
+    UseCase?:     string
   }
 
   type UCLimits = {[key:string]:Limits};
@@ -155,20 +191,70 @@
   export class ControlBoxPanel extends Vue {
     public qrcode = "";
 
-    public remoteEntities: EntityDescription[] = [];
-    public ski = "";
+    public dd: DeviceData = {};
 
-    public get optionEntities() {
+    public remoteServices: RemoteService[] = [];
+    public remoteEntities: EntityInfo[] | undefined = [];
+    public selectedSki = "";
+    public selectedEntity: EntityInfo | undefined = undefined;
+
+    public get selectedDd() {
+      return this.dd[this.selectedSki];
+    }
+
+    public get optionServices() {
       var options:any[] = [];
-      this.remoteEntities.forEach(item => { options.push({
-          label: item.Name,
-          value: item.SKI
+      this.remoteServices.forEach(item => { options.push({
+          label: item.brand + " " + item.model + ("" < item.serial ? (", SN-" + item.serial) : ""),
+          value: item.ski
         });        
       });
       return options;
     }
 
-    public dd: DeviceData = {};
+    public get selectedEntities(): EntityInfo[] {
+      if ( "" < this.selectedSki && !! this.remoteEntities ) {
+        return this.remoteEntities.filter( (re) => re.SKI == this.selectedSki );
+      }
+      else {
+        return [];
+      }
+    }
+
+    public get optionEntities() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.selectedEntities ) {
+        this.selectedEntities.forEach(item => { options.push({
+            label: item.Name,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
+
+    public get deviceType() {
+      if ( "" < this.selectedSki && !! this.selectedEntity ) {
+        return this.selectedEntity.Type;
+      }
+      else {
+        return "";
+      }
+    }
+
+    public get optionFeatures() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.selectedEntity ) {
+        this.selectedEntity.Features.forEach(item => { options.push({
+            label: item,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
 
     public consumptionNominalMax: number = 0;
     public productionNominalMax:  number = 0;
@@ -181,13 +267,12 @@
     private socket: WebSocket | undefined;
   
     mounted() {
-      this.socket = new WebSocket( "ws://" + window.location.hostname + ":7070/ws" );
+      this.socket = new WebSocket( "ws://" + window.location.hostname + ":7080/ws" );
       console.log( "Attempting Connection..." );
 
       this.socket.onopen = () => {
           console.log( "Successfully Connected" );
-          //this.sendText( "Hi From the Client!" );
-          this.sendNotification( MessageType.GetEntityList );
+          this.sendNotification( MessageType.GetEntityInfo );
       };
       
       this.socket.onclose = event => {
@@ -203,85 +288,82 @@
       this.socket.onmessage = event => {
         console.log( "Socket message: ", event.data );
         var message: Message = JSON.parse( event.data );
-        if ( message.Type == MessageType.QRCode ) {
-          this.qrcode = message.Text as string;
-        }
-        else if ( message.Type == MessageType.EntityListChanged ) {
-          this.sendNotification( MessageType.GetEntityList );
-        }
-        else if ( message.Type == MessageType.GetEntityList ) {
-          this.remoteEntities = message.EntityList!;
-          this.updateDeviceData();
-          if ( ! this.ski && 0 < this.remoteEntities.length )
-            this.ski = this.remoteEntities[0].SKI;
-          this.sendNotification( MessageType.GetAllData )
-        }
-        else if ( message.Type == MessageType.GetConsumptionLimit ) {
-          this.dd[this.ski][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-          this.dd[this.ski][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-          this.dd[this.ski][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
-        }
-        else if ( message.Type == MessageType.GetConsumptionFailsafeValue ) {
-          this.dd[this.ski]['LPC'].FSValue = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetConsumptionFailsafeDuration ) {
-          this.dd[this.ski]['LPC'].FSDuration = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetProductionLimit ) {
-          this.dd[this.ski][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-          this.dd[this.ski][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-          this.dd[this.ski][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
-        }
-        else if ( message.Type == MessageType.GetProductionFailsafeValue ) {
-          this.dd[this.ski]['LPP'].FSValue = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetProductionFailsafeDuration ) {
-          this.dd[this.ski]['LPP'].FSDuration = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetConsumptionNominalMax ) {
-          this.consumptionNominalMax = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetProductionNominalMax ) {
-          this.productionNominalMax = message.Value ?? 0;
-        }
-        else if ( message.Type == MessageType.GetConsumptionHeartbeat ) {
-          this.consumptionHeartbeat = false;
-          setTimeout( () => this.consumptionHeartbeat = true, 10 );
-        }
-        else if ( message.Type == MessageType.GetProductionHeartbeat ) {
-          this.productionHeartbeat = false;
-          setTimeout( () => this.productionHeartbeat = true, 10 );
-        }
-      }
-    }
-
-    private updateDeviceData() {
-      if ( ! this.remoteEntities ) {
-        this.dd = {};
-        return;
-      }
-
-      this.remoteEntities.forEach( re => {
-        if ( -1 == Object.keys( this.dd ).findIndex( ski => ski == re.SKI ) ) {
-          this.dd[re.SKI] = {};
-        }
-
-        var dd = this.dd[re.SKI];
-        re.UseCases.forEach( reuc => {
-          if ( -1 == Object.keys( dd ).findIndex( uc => uc == reuc ) ) {
-            dd[reuc] = {} as Limits;
+        switch ( message.Type ) {
+          case MessageType.QRCode: {
+            this.qrcode = message.Text as string;
+            console.log( "SHIPID: ", this.qrcode );
+            break;
           }
-        });
-      });
+          case MessageType.ServiceListChanged: {
+            this.sendNotification( MessageType.GetServiceList );
+            break;
+          }
+          case MessageType.GetServiceList: {
+            this.remoteServices = message.ServiceList!;
+            break;
+          }
+          case MessageType.GetEntityInfo: {
+            this.remoteEntities = message.EntityInfos;
+            break;
+          }
+          case MessageType.GetConsumptionLimit:
+          case MessageType.GetProductionLimit: {
+            this.updateDeviceData( message.UseCase! );
+            this.dd[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+            this.dd[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+            this.dd[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+            break;
+          }
+          case MessageType.GetConsumptionFailsafeValue:
+          case MessageType.GetProductionFailsafeValue: {
+            this.updateDeviceData( message.UseCase! );
+            this.dd[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+            break;
+          }
+          case MessageType.GetConsumptionFailsafeDuration:
+          case MessageType.GetProductionFailsafeDuration: {
+            this.updateDeviceData( message.UseCase! );
+            this.dd[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+            break;
+          }
+          case MessageType.GetConsumptionNominalMax: {
+            this.consumptionNominalMax = message.Value ?? 0;
+            break;
+          }
+          case MessageType.GetProductionNominalMax: {
+            this.productionNominalMax = message.Value ?? 0;
+            break;
+          }
+          case MessageType.GetConsumptionHeartbeat: {
+            this.consumptionHeartbeat = false;
+            setTimeout( () => this.consumptionHeartbeat = true, 1 );
+            break;
+          }
+          case MessageType.GetProductionHeartbeat: {
+            this.productionHeartbeat = false;
+            setTimeout( () => this.productionHeartbeat = true, 1 );
+            break;
+          }
+        }   
+      }
     }
 
-    public deviceSelected() {
-      this.sendNotification( MessageType.GetAllData );
+    private updateDeviceData( useCase: string ) {
+      if ( ! this.dd[this.selectedSki] )
+          this.dd[this.selectedSki] = {};
+      if ( ! this.dd[this.selectedSki][useCase] )
+          this.dd[this.selectedSki][useCase] = {} as Limits;
     }
 
-    private sendNotification( type: MessageType ) {
+    public serviceSelected() {
+      this.selectedEntity = undefined;
+      this.sendNotification( MessageType.SelectService, this.selectedSki );
+    }
+
+    private sendNotification( type: MessageType, param: string = "" ) {
       let command: Message = {
         Type: type,
+        Text: param
       };
 
       this.socket!.send( JSON.stringify( command ) );
@@ -318,42 +400,42 @@
       if ( ! this.socket )
         return;
       
-      this.sendLimits( MessageType.SetConsumptionLimit, this.dd[this.ski]['LPC'] );
+      this.sendLimits( MessageType.SetConsumptionLimit, this.dd[this.selectedSki]['LPC'] );
     }
 
     public setProductionLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendLimits( MessageType.SetProductionLimit, this.dd[this.ski]['LPP'] );
+      this.sendLimits( MessageType.SetProductionLimit, this.dd[this.selectedSki]['LPP'] );
     }
 
     public setConsumptionFailsafeLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetConsumptionFailsafeValue, this.dd[this.ski]['LPC'].FSValue );
+      this.sendValue( MessageType.SetConsumptionFailsafeValue, this.dd[this.selectedSki]['LPC'].FSValue );
     }
 
     public setConsumptionFailsafeDuration() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetConsumptionFailsafeDuration, this.dd[this.ski]['LPC'].FSDuration );
+      this.sendValue( MessageType.SetConsumptionFailsafeDuration, this.dd[this.selectedSki]['LPC'].FSDuration );
     }
 
     public setProductionFailsafeLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetProductionFailsafeValue, this.dd[this.ski]['LPP'].FSValue );
+      this.sendValue( MessageType.SetProductionFailsafeValue, this.dd[this.selectedSki]['LPP'].FSValue );
     }
 
     public setProductionFailsafeDuration() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetProductionFailsafeDuration, this.dd[this.ski]['LPP'].FSDuration );
+      this.sendValue( MessageType.SetProductionFailsafeDuration, this.dd[this.selectedSki]['LPP'].FSDuration );
     }
 
     // public getConsumptionNominalMax() {

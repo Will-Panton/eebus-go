@@ -311,6 +311,10 @@ func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
 }
 
 func (h *hems) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
+	for _, element := range entries {
+		service := h.myService.RemoteServiceForSKI(element.Ski)
+		service.SetTrusted(true)
+	}
 }
 
 func (h *hems) ServiceShipIDUpdate(ski string, shipdID string) {}
@@ -326,7 +330,8 @@ func (h *hems) ServicePairingDetailUpdate(ski string, detail *shipapi.Connection
 }
 
 func (h *hems) AllowWaitingForTrust(ski string) bool {
-	return ski == remoteSki
+	//return ski == remoteSki
+	return true
 }
 
 // UCEvseCommisioningConfigurationCemDelegate

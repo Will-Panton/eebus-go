@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"sync"
 	"syscall"
@@ -34,6 +35,7 @@ var remoteSki string
 type WebsocketClient struct {
 	websocket *websocket.Conn
 	mutex     sync.Mutex
+	mutex2    sync.Mutex
 }
 
 func (websocketClient *WebsocketClient) sendMessage(msg interface{}) error {
@@ -42,12 +44,14 @@ func (websocketClient *WebsocketClient) sendMessage(msg interface{}) error {
 	}
 
 	websocketClient.mutex.Lock()
-	defer websocketClient.mutex.Unlock()
 
 	err := websocketClient.websocket.WriteJSON(msg)
 	if err != nil {
 		log.Println(err)
 	}
+
+	defer websocketClient.mutex.Unlock()
+
 	return err
 }
 
@@ -84,19 +88,44 @@ func (websocketClient *WebsocketClient) sendLimit(messageType int, useCase strin
 	return websocketClient.sendMessage(answer)
 }
 
-func (websocketClient *WebsocketClient) sendEntityList(messageType int, entities map[spineapi.EntityRemoteInterface][]string) error {
-	list := []EntityDescription{}
+func (websocketClient *WebsocketClient) sendServiceList(messageType int, services []shipapi.RemoteService) error {
+	answer := Message{
+		Type:        messageType,
+		ServiceList: services}
 
-	for ed, ucs := range entities {
-		list = append(list, EntityDescription{
-			Name:     ed.Address().String(),
-			SKI:      ed.Device().Ski(),
-			UseCases: ucs})
+	return websocketClient.sendMessage(answer)
+}
+
+func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteInfos map[string]RemoteInfo) error {
+	websocketClient.mutex2.Lock()
+
+	entityInfos := []EntityInfo{}
+
+	for _, remoteInfo := range remoteInfos {
+		device := remoteInfo.Device
+		for _, entity := range device.Entities() {
+			features := []string{}
+
+			for _, f := range entity.Features() {
+				features = append(features, f.String())
+			}
+
+			info := EntityInfo{
+				Name:     entity.Address().String(),
+				SKI:      device.Ski(),
+				Type:     string(*device.DeviceType()),
+				Features: features,
+				UseCases: remoteInfo.UseCases}
+
+			entityInfos = append(entityInfos, info)
+		}
 	}
 
 	answer := Message{
-		Type:       messageType,
-		EntityList: list}
+		Type:        messageType,
+		EntityInfos: entityInfos}
+
+	defer websocketClient.mutex2.Unlock()
 
 	return websocketClient.sendMessage(answer)
 }
@@ -116,22 +145,24 @@ type controlbox struct {
 
 	isConnected bool
 
-	remoteEntities map[spineapi.EntityRemoteInterface][]string
+	remoteInfos map[string]RemoteInfo
 
 	consumptionLimits         ucapi.LoadLimit
 	productionLimits          ucapi.LoadLimit
 	consumptionFailsafeLimits failsafeLimits
 	productionFailsafeLimits  failsafeLimits
+
+	currentRemoteServices []shipapi.RemoteService
 }
 
 func (h *controlbox) run() {
 	var err error
 	var certificate tls.Certificate
 
-	if len(os.Args) == 5 {
-		remoteSki = os.Args[2]
+	if len(os.Args) == 4 {
+		remoteSki = ""
 
-		certificate, err = tls.LoadX509KeyPair(os.Args[3], os.Args[4])
+		certificate, err = tls.LoadX509KeyPair(os.Args[2], os.Args[3])
 		if err != nil {
 			usage()
 			log.Fatal(err)
@@ -171,7 +202,7 @@ func (h *controlbox) run() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	configuration.SetAlternateIdentifier("Demo-ControlBox-123456789")
+	configuration.SetAlternateIdentifier("ControlBox Simulator SN-123456789")
 
 	h.myService = service.NewService(configuration, h)
 	h.myService.SetLogging(h)
@@ -181,24 +212,6 @@ func (h *controlbox) run() {
 		return
 	}
 
-	h.consumptionLimits = ucapi.LoadLimit{
-		IsActive: false,
-		Value:    4200,
-		Duration: 2 * time.Hour}
-
-	h.productionLimits = ucapi.LoadLimit{
-		IsActive: false,
-		Value:    5000,
-		Duration: 1 * time.Hour}
-
-	h.consumptionFailsafeLimits = failsafeLimits{
-		Value:    4200,
-		Duration: 2 * time.Hour}
-
-	h.productionFailsafeLimits = failsafeLimits{
-		Value:    5000,
-		Duration: 1 * time.Hour}
-
 	localEntity := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeGridGuard)
 	h.uclpc = lpc.NewLPC(localEntity, h.OnLPCEvent)
 	h.myService.AddUseCase(h.uclpc)
@@ -206,16 +219,9 @@ func (h *controlbox) run() {
 	h.uclpp = lpp.NewLPP(localEntity, h.OnLPPEvent)
 	h.myService.AddUseCase(h.uclpp)
 
-	h.remoteEntities = map[spineapi.EntityRemoteInterface][]string{}
-
-	if len(remoteSki) == 0 {
-		os.Exit(0)
-	}
-
-	h.myService.RegisterRemoteSKI(remoteSki)
+	h.remoteInfos = map[string]RemoteInfo{}
 
 	h.myService.Start()
-	// defer h.myService.Shutdown()
 }
 
 // EEBUSServiceHandler
@@ -226,12 +232,26 @@ func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
 	h.isConnected = false
+
+	frontend.sendNotification(ServiceListChanged)
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
+	h.currentRemoteServices = entries
+
+	for _, element := range h.currentRemoteServices {
+		service := h.myService.RemoteServiceForSKI(element.Ski)
+		service.SetTrusted(true)
+	}
+
+	frontend.sendNotification(ServiceListChanged)
+	// h.updateServicesList()
+
+	// h.broadcastServicesList()
 }
 
-func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {}
+func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
+}
 
 func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.ConnectionStateDetail) {
 	if ski == remoteSki && detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
@@ -241,10 +261,13 @@ func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.Conn
 		h.myService.Shutdown()
 		os.Exit(0)
 	}
+
+	frontend.sendNotification(ServiceListChanged)
 }
 
 func (h *controlbox) AllowWaitingForTrust(ski string) bool {
-	return ski == remoteSki
+	//return ski == remoteSki
+	return true
 }
 
 // LPC Event Handler
@@ -319,50 +342,71 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpc.UseCaseSupportUpdate:
-		var listUCs = h.remoteEntities[entity]
-		if listUCs == nil {
-			listUCs = []string{}
+		fmt.Println("----------------------------------------")
+		fmt.Println("Event lpc.UseCaseSupportUpdate", ski)
+		fmt.Println("----------------------------------------")
+
+		info, exists := h.remoteInfos[ski]
+		if !exists {
+			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
+			h.remoteInfos[ski] = RemoteInfo{
+				Service:  h.currentRemoteServices[indx],
+				Device:   device,
+				UseCases: []string{"LPC"},
+			}
+		} else {
+			info.Device = device
+			found := slices.Contains(info.UseCases, "LPC")
+			if !found {
+				info.UseCases = append(info.UseCases, "LPC")
+				h.remoteInfos[ski] = info
+			}
 		}
-		h.remoteEntities[entity] = append(listUCs, "LPC")
+		frontend.sendEntityInfo(GetEntityInfo, h.remoteInfos)
+		readData(h, entity)
 
-		fmt.Println("Sending consumption limit in 5s...")
-
-		time.AfterFunc(5*time.Second, func() {
-			frontend.sendNotification(EntityListChanged)
-
-			//h.readConsumptionNominalMax(entity)
-			h.sendConsumptionLimit(entity)
-			h.sendConsumptionFailsafeLimit(entity)
-			h.sendConsumptionFailsafeDuration(entity)
-		})
 	case lpc.DataUpdateLimit:
 		if currentLimit, err := h.uclpc.ConsumptionLimit(entity); err == nil {
-			h.consumptionLimits = currentLimit
+			if ski == remoteSki {
+				fmt.Println("Event lpc.DataUpdateLimit", ski, currentLimit.Value)
 
-			if currentLimit.IsActive {
-				fmt.Println("New consumption limit received: active,", currentLimit.Value, "W,", currentLimit.Duration)
-			} else {
-				fmt.Println("New consumption limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
+				h.consumptionLimits = currentLimit
+
+				if currentLimit.IsActive {
+					fmt.Println("New consumption limit received: active,", currentLimit.Value, "W,", currentLimit.Duration)
+				} else {
+					fmt.Println("New consumption limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
+				}
+				frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+					IsActive: currentLimit.IsActive,
+					Duration: currentLimit.Duration / time.Second,
+					Value:    currentLimit.Value})
 			}
-			frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
-				IsActive: currentLimit.IsActive,
-				Duration: currentLimit.Duration / time.Second,
-				Value:    currentLimit.Value})
 		}
 	case lpc.DataUpdateFailsafeConsumptionActivePowerLimit:
 		if limit, err := h.uclpc.FailsafeConsumptionActivePowerLimit(entity); err == nil {
-			h.consumptionFailsafeLimits.Value = limit
+			if ski == remoteSki {
+				fmt.Println("Event lpc.DataUpdateFailsafeConsumptionActivePowerLimit", ski, limit)
 
-			frontend.sendValue(GetConsumptionFailsafeValue, "LPC", limit)
+				h.consumptionFailsafeLimits.Value = limit
+
+				frontend.sendValue(GetConsumptionFailsafeValue, "LPC", limit)
+			}
 		}
 	case lpc.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpc.FailsafeDurationMinimum(entity); err == nil {
-			h.consumptionFailsafeLimits.Duration = duration
+			if ski == remoteSki {
+				fmt.Println("Event lpc.DataUpdateFailsafeDurationMinimum", ski, duration)
 
-			frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
+				h.consumptionFailsafeLimits.Duration = duration
+
+				frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
+			}
 		}
 	case lpc.DataUpdateHeartbeat:
-		frontend.sendNotification(GetConsumptionHeartbeat)
+		if ski == remoteSki {
+			frontend.sendNotification(GetConsumptionHeartbeat)
+		}
 	default:
 		return
 	}
@@ -422,51 +466,72 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpp.UseCaseSupportUpdate:
-		var listUCs = h.remoteEntities[entity]
-		if listUCs == nil {
-			listUCs = []string{}
+		fmt.Println("----------------------------------------")
+		fmt.Println("Event lpp.UseCaseSupportUpdate", ski)
+		fmt.Println("----------------------------------------")
+
+		info, exists := h.remoteInfos[ski]
+		if !exists {
+			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
+			h.remoteInfos[ski] = RemoteInfo{
+				Service:  h.currentRemoteServices[indx],
+				Device:   device,
+				UseCases: []string{"LPP"},
+			}
+		} else {
+			info.Device = device
+			found := slices.Contains(info.UseCases, "LPP")
+			if !found {
+				info.UseCases = append(info.UseCases, "LPP")
+				h.remoteInfos[ski] = info
+			}
 		}
-		h.remoteEntities[entity] = append(listUCs, "LPP")
+		frontend.sendEntityInfo(GetEntityInfo, h.remoteInfos)
+		readData(h, entity)
 
-		fmt.Println("Sending production limit in 5s...")
-
-		time.AfterFunc(5*time.Second, func() {
-			frontend.sendNotification(EntityListChanged)
-
-			//h.readProductionNominalMax(entity)
-			h.sendProductionLimit(entity)
-			h.sendProductiomFailsafeLimit(entity)
-			h.sendProductiomFailsafeDuration(entity)
-		})
 	case lpp.DataUpdateLimit:
 		if currentLimit, err := h.uclpp.ProductionLimit(entity); err == nil {
-			h.productionLimits = currentLimit
+			if ski == remoteSki {
+				fmt.Println("Event lpp.DataUpdateLimit", ski, currentLimit.Value)
 
-			if currentLimit.IsActive {
-				fmt.Println("New production limit received: active,", currentLimit.Value, "W,", currentLimit.Duration)
-			} else {
-				fmt.Println("New production limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
+				h.productionLimits = currentLimit
+
+				if currentLimit.IsActive {
+					fmt.Println("New production limit received: active,", currentLimit.Value, "W,", currentLimit.Duration)
+				} else {
+					fmt.Println("New production limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
+				}
+
+				frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+					IsActive: currentLimit.IsActive,
+					Duration: currentLimit.Duration / time.Second,
+					Value:    currentLimit.Value})
 			}
-
-			frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
-				IsActive: currentLimit.IsActive,
-				Duration: currentLimit.Duration / time.Second,
-				Value:    currentLimit.Value})
 		}
 	case lpp.DataUpdateFailsafeProductionActivePowerLimit:
 		if limit, err := h.uclpp.FailsafeProductionActivePowerLimit(entity); err == nil {
-			h.productionFailsafeLimits.Value = limit
+			if ski == remoteSki {
+				fmt.Println("Event lpp.DataUpdateFailsafeProductionActivePowerLimit", ski, limit)
 
-			frontend.sendValue(GetProductionFailsafeValue, "LPP", limit)
+				h.productionFailsafeLimits.Value = limit
+
+				frontend.sendValue(GetProductionFailsafeValue, "LPP", limit)
+			}
 		}
 	case lpp.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpp.FailsafeDurationMinimum(entity); err == nil {
-			h.productionFailsafeLimits.Duration = duration
+			if ski == remoteSki {
+				fmt.Println("Event lpp.DataUpdateFailsafeDurationMinimum", ski, duration)
 
-			frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
+				h.productionFailsafeLimits.Duration = duration
+
+				frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
+			}
 		}
 	case lpp.DataUpdateHeartbeat:
-		frontend.sendNotification(GetProductionHeartbeat)
+		if ski == remoteSki {
+			frontend.sendNotification(GetProductionHeartbeat)
+		}
 	default:
 		return
 	}
@@ -478,7 +543,7 @@ func usage() {
 	fmt.Println("  go run /examples/controlbox/main.go <serverport>")
 	fmt.Println()
 	fmt.Println("General Usage:")
-	fmt.Println("  go run /examples/controlbox/main.go <serverport> <remoteski> <crtfile> <keyfile>")
+	fmt.Println("  go run /examples/controlbox/main.go <serverport> <crtfile> <keyfile>")
 }
 
 func main() {
@@ -548,54 +613,111 @@ func (h *controlbox) printFormat(msgType, format string, args ...interface{}) {
 	fmt.Println(h.currentTimestamp(), msgType, value)
 }
 
+// eebus services
+
 // web frontend
 
 const (
-	httpdPort int = 7070
+	httpdPort int = 7080
 )
 
 const (
 	Text                           = 0
 	QRCode                         = 1
 	Acknowledge                    = 2
-	EntityListChanged              = 3
-	GetEntityList                  = 4
-	GetAllData                     = 5
-	SetConsumptionLimit            = 6
-	GetConsumptionLimit            = 7
-	SetProductionLimit             = 8
-	GetProductionLimit             = 9
-	SetConsumptionFailsafeValue    = 10
-	GetConsumptionFailsafeValue    = 11
-	SetConsumptionFailsafeDuration = 12
-	GetConsumptionFailsafeDuration = 13
-	SetProductionFailsafeValue     = 14
-	GetProductionFailsafeValue     = 15
-	SetProductionFailsafeDuration  = 16
-	GetProductionFailsafeDuration  = 17
-	GetConsumptionNominalMax       = 18
-	GetProductionNominalMax        = 19
-	GetConsumptionHeartbeat        = 20
-	StopConsumptionHeartbeat       = 21
-	StartConsumptionHeartbeat      = 22
-	GetProductionHeartbeat         = 23
-	StopProductionHeartbeat        = 24
-	StartProductionHeartbeat       = 25
+	ServiceListChanged             = 3
+	GetServiceList                 = 4
+	SelectService                  = 5
+	GetEntityInfo                  = 6
+	GetAllData                     = 7
+	SetConsumptionLimit            = 8
+	GetConsumptionLimit            = 9
+	SetProductionLimit             = 10
+	GetProductionLimit             = 11
+	SetConsumptionFailsafeValue    = 12
+	GetConsumptionFailsafeValue    = 13
+	SetConsumptionFailsafeDuration = 14
+	GetConsumptionFailsafeDuration = 15
+	SetProductionFailsafeValue     = 16
+	GetProductionFailsafeValue     = 17
+	SetProductionFailsafeDuration  = 18
+	GetProductionFailsafeDuration  = 19
+	GetConsumptionNominalMax       = 20
+	GetProductionNominalMax        = 21
+	GetConsumptionHeartbeat        = 22
+	StopConsumptionHeartbeat       = 23
+	StartConsumptionHeartbeat      = 24
+	GetProductionHeartbeat         = 25
+	StopProductionHeartbeat        = 26
+	StartProductionHeartbeat       = 27
 )
 
-type EntityDescription struct {
+type RemoteInfo struct {
+	Service  shipapi.RemoteService
+	Device   spineapi.DeviceRemoteInterface
+	UseCases []string
+}
+
+type EntityInfo struct {
 	Name     string
 	SKI      string
+	Type     string
+	Features []string
 	UseCases []string
 }
 
 type Message struct {
-	Type       int
-	Text       string
-	Limit      ucapi.LoadLimit
-	Value      float64
-	EntityList []EntityDescription
-	UseCase    string
+	Type        int
+	Text        string
+	Limit       ucapi.LoadLimit
+	Value       float64
+	ServiceList []shipapi.RemoteService
+	EntityInfos []EntityInfo
+	UseCase     string
+}
+
+func readData(h *controlbox, entity spineapi.EntityRemoteInterface) {
+	if currentLimit, err := h.uclpc.ConsumptionLimit(entity); err == nil {
+		h.consumptionLimits = currentLimit
+
+		frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+			IsActive: currentLimit.IsActive,
+			Duration: currentLimit.Duration / time.Second,
+			Value:    currentLimit.Value})
+	}
+
+	if limit, err := h.uclpc.FailsafeConsumptionActivePowerLimit(entity); err == nil {
+		h.consumptionFailsafeLimits.Value = limit
+
+		frontend.sendValue(GetConsumptionFailsafeValue, "LPC", limit)
+	}
+
+	if duration, err := h.uclpc.FailsafeDurationMinimum(entity); err == nil {
+		h.consumptionFailsafeLimits.Duration = duration
+
+		frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
+	}
+
+	if currentLimit, err := h.uclpp.ProductionLimit(entity); err == nil {
+		h.productionLimits = currentLimit
+
+		frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+			IsActive: currentLimit.IsActive,
+			Duration: currentLimit.Duration / time.Second,
+			Value:    currentLimit.Value})
+	}
+
+	if limit, err := h.uclpp.FailsafeProductionActivePowerLimit(entity); err == nil {
+		h.productionFailsafeLimits.Value = limit
+
+		frontend.sendValue(GetProductionFailsafeValue, "LPP", limit)
+	}
+
+	if duration, err := h.uclpp.FailsafeDurationMinimum(entity); err == nil {
+		h.productionFailsafeLimits.Duration = duration
+
+		frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
+	}
 }
 
 func sendData(h *controlbox) {
@@ -653,6 +775,8 @@ func serveWs(h *controlbox, w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Client Connected")
 
+	frontend.sendServiceList(GetServiceList, h.currentRemoteServices)
+
 	sendData(h)
 
 	reader(h, ws)
@@ -667,16 +791,32 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			return
 		}
 		// print out that message for clarity
-		fmt.Println(string(p))
+		//fmt.Println(string(p))
 
 		data := Message{}
 		json.Unmarshal([]byte(p), &data)
 
-		if data.Type == GetEntityList {
-			frontend.sendEntityList(GetEntityList, h.remoteEntities)
-		} else if data.Type == GetAllData {
+		switch data.Type {
+		case GetServiceList:
+			frontend.sendServiceList(GetServiceList, h.currentRemoteServices)
+		case SelectService:
+			remoteSki = data.Text
+
+			info, exists := h.remoteInfos[remoteSki]
+			if !exists {
+				h.myService.RegisterRemoteSKI(remoteSki)
+			} else {
+				for _, entity := range info.Device.Entities() {
+					readData(h, entity)
+				}
+			}
+		case GetEntityInfo:
+			if nil != h.remoteInfos {
+				frontend.sendEntityInfo(GetEntityInfo, h.remoteInfos)
+			}
+		case GetAllData:
 			sendData(h)
-		} else if data.Type == SetConsumptionLimit {
+		case SetConsumptionLimit:
 			var limit = data.Limit
 
 			h.consumptionLimits.IsActive = limit.IsActive
@@ -686,7 +826,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpc.RemoteEntitiesScenarios() {
 				h.sendConsumptionLimit(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == SetProductionLimit {
+		case SetProductionLimit:
 			var limit = data.Limit
 
 			h.productionLimits.IsActive = limit.IsActive
@@ -696,7 +836,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpp.RemoteEntitiesScenarios() {
 				h.sendProductionLimit(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == SetConsumptionFailsafeValue {
+		case SetConsumptionFailsafeValue:
 			var limit = data.Value
 
 			h.consumptionFailsafeLimits.Value = limit
@@ -704,7 +844,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpc.RemoteEntitiesScenarios() {
 				h.sendConsumptionFailsafeLimit(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == SetConsumptionFailsafeDuration {
+		case SetConsumptionFailsafeDuration:
 			var limit = data.Value
 
 			h.consumptionFailsafeLimits.Duration = time.Duration(limit) * time.Second
@@ -712,7 +852,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpc.RemoteEntitiesScenarios() {
 				h.sendConsumptionFailsafeDuration(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == SetProductionFailsafeValue {
+		case SetProductionFailsafeValue:
 			var limit = data.Value
 
 			h.productionFailsafeLimits.Value = limit
@@ -720,7 +860,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpp.RemoteEntitiesScenarios() {
 				h.sendProductionFailsafeLimit(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == SetProductionFailsafeDuration {
+		case SetProductionFailsafeDuration:
 			var limit = data.Value
 
 			h.productionFailsafeLimits.Duration = time.Duration(limit) * time.Second
@@ -728,19 +868,12 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			for _, remoteEntityScenario := range h.uclpp.RemoteEntitiesScenarios() {
 				h.sendProductionFailsafeDuration(remoteEntityScenario.Entity)
 			}
-		} else if data.Type == StopConsumptionHeartbeat {
+		case StopConsumptionHeartbeat:
 			h.uclpc.StopHeartbeat()
-		} else if data.Type == StartConsumptionHeartbeat {
+		case StartConsumptionHeartbeat:
 			h.uclpc.StartHeartbeat()
 		}
 
-		answer := Message{
-			Type: Acknowledge}
-
-		bytes, _ := json.Marshal(answer)
-		if err := ws.WriteMessage(1, bytes); err != nil {
-			log.Println(err)
-			return
-		}
+		frontend.sendNotification(Acknowledge)
 	}
 }
