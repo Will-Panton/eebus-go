@@ -40,7 +40,7 @@
     <div class="usecases">
       <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPC']">
         <h3>Consumption Limit</h3>
-        <div class="form-line">
+        <div class="form-line3">
           <label>Active:</label>
           <input type="checkbox" v-model="selectedDd['LPC'].IsActive"/>
 
@@ -72,7 +72,7 @@
       </div>
       <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPP']">
         <h3>Production Limit</h3>
-        <div class="form-line">
+        <div class="form-line3">
           <label>Active:</label>
           <input type="checkbox" v-model="selectedDd['LPP'].IsActive"/>
 
@@ -101,6 +101,37 @@
           <div></div>
         </div>
       </div>
+      <div v-if="'' < selectedSki && !!monitorings[selectedSki]">
+        <h3>Monitoring Grid Connection Point</h3>
+        <div class="form-line2">
+          <label>Power Limitation Factor:</label>
+          <label>{{ monitorings[selectedSki].PowerLimitationFactor ?? 0 }} %</label>
+
+          <label>Power:</label>
+          <label>{{ monitorings[selectedSki].Power ?? 0 }} W</label>
+
+          <label>Energy FeedIn:</label>
+          <label>{{ monitorings[selectedSki].EnergyFeedIn ?? 0 }} Wh</label>
+
+          <label>Energy Consumed:</label>
+          <label>{{ monitorings[selectedSki].EnergyConsumed ?? 0 }} Wh</label>
+
+          <label>Currents per Phase:</label>
+          <label>{{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[0] }} A,
+                 {{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[1] }} A,
+                 {{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[2] }} A
+          </label>
+
+          <label>Voltages per Phase:</label>
+          <label>{{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[0] }} V,
+                 {{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[1] }} V,
+                 {{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[2] }} V
+          </label>
+
+          <label>Frequency:</label>
+          <label>{{ monitorings[selectedSki].Frequency ?? 0 }} Hz</label>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -118,7 +149,7 @@
     ServiceListChanged             = 3,
     GetServiceList                 = 4,
     SelectService                  = 5,
-    GetEntityInfo                  = 6,
+    GetEntityInfos                 = 6,
     GetAllData                     = 7,
     SetConsumptionLimit            = 8,
     GetConsumptionLimit            = 9,
@@ -140,7 +171,14 @@
     GetProductionHeartbeat         = 25,
     StopProductionHeartbeat        = 26,
     StartProductionHeartbeat       = 27,
-  }
+  	GetPowerLimitationFactor       = 28,
+  	GetPower                       = 29,
+	  GetEnergyFeedIn                = 30,
+	  GetEnergyConsumed              = 31,
+	  GetCurrentPerPhase             = 32,
+	  GetVoltagePerPhase             = 33,
+	  GetFrequency                   = 34
+}
 
   interface Limits {
     IsActive:   boolean,
@@ -148,6 +186,16 @@
 	  Duration:   number,
 	  FSValue:    number,
 	  FSDuration: number
+  }
+
+  interface MonitoringGCP {
+    PowerLimitationFactor: number,
+    Power: number,
+    EnergyFeedIn: number,
+    EnergyConsumed: number,
+    CurrentPerPhase: number[],
+    VoltagePerPhase: number[],
+    Frequency: number
   }
 
   interface RemoteService {
@@ -174,13 +222,15 @@
     Text?:        string,
     Limit?:       Limits,
     Value?:       number,
+    Values?:      number[],
     ServiceList?: RemoteService[],
     EntityInfos?: EntityInfo[],
     UseCase?:     string
   }
 
   type UCLimits = {[key:string]:Limits};
-  type DeviceData = {[key:string]:UCLimits};
+  type LimitData = {[key:string]:UCLimits};
+  type MonitoringData = {[key:string]:MonitoringGCP};
 
   @Component({
     components: {
@@ -191,7 +241,8 @@
   export class ControlBoxPanel extends Vue {
     public qrcode = "";
 
-    public dd: DeviceData = {};
+    public limits: LimitData = {};
+    public monitorings: MonitoringData = {};
 
     public remoteServices: RemoteService[] = [];
     public remoteEntities: EntityInfo[] | undefined = [];
@@ -199,7 +250,7 @@
     public selectedEntity: EntityInfo | undefined = undefined;
 
     public get selectedDd() {
-      return this.dd[this.selectedSki];
+      return this.limits[this.selectedSki];
     }
 
     public get optionServices() {
@@ -272,7 +323,7 @@
 
       this.socket.onopen = () => {
           console.log( "Successfully Connected" );
-          this.sendNotification( MessageType.GetEntityInfo );
+          this.sendNotification( MessageType.GetEntityInfos );
       };
       
       this.socket.onclose = event => {
@@ -302,28 +353,28 @@
             this.remoteServices = message.ServiceList!;
             break;
           }
-          case MessageType.GetEntityInfo: {
+          case MessageType.GetEntityInfos: {
             this.remoteEntities = message.EntityInfos;
             break;
           }
           case MessageType.GetConsumptionLimit:
           case MessageType.GetProductionLimit: {
             this.updateDeviceData( message.UseCase! );
-            this.dd[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-            this.dd[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-            this.dd[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+            this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+            this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+            this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
             break;
           }
           case MessageType.GetConsumptionFailsafeValue:
           case MessageType.GetProductionFailsafeValue: {
             this.updateDeviceData( message.UseCase! );
-            this.dd[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+            this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
             break;
           }
           case MessageType.GetConsumptionFailsafeDuration:
           case MessageType.GetProductionFailsafeDuration: {
             this.updateDeviceData( message.UseCase! );
-            this.dd[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+            this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
             break;
           }
           case MessageType.GetConsumptionNominalMax: {
@@ -344,15 +395,56 @@
             setTimeout( () => this.productionHeartbeat = true, 1 );
             break;
           }
+          case MessageType.GetPowerLimitationFactor: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].PowerLimitationFactor = message.Value ?? 0;
+            break;
+          }
+	        case MessageType.GetPower: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].Power = message.Value ?? 0;
+            break;
+          }
+        	case MessageType.GetEnergyFeedIn: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].EnergyFeedIn = message.Value ?? 0;
+            break;
+          }
+        	case MessageType.GetEnergyConsumed: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].EnergyConsumed = message.Value ?? 0;
+            break;
+          }
+        	case MessageType.GetCurrentPerPhase: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].CurrentPerPhase = message.Values ?? [0, 0, 0];
+            break;
+          }
+        	case MessageType.GetVoltagePerPhase: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].VoltagePerPhase = message.Values ?? [0, 0, 0];
+            break;
+          }
+        	case MessageType.GetFrequency: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki].Frequency = message.Value ?? 0;
+            break;
+          }
         }   
       }
     }
 
     private updateDeviceData( useCase: string ) {
-      if ( ! this.dd[this.selectedSki] )
-          this.dd[this.selectedSki] = {};
-      if ( ! this.dd[this.selectedSki][useCase] )
-          this.dd[this.selectedSki][useCase] = {} as Limits;
+      if ( useCase == "LPC" || useCase == "LPP" ) {
+        if ( ! this.limits[this.selectedSki] )
+            this.limits[this.selectedSki] = {};
+        if ( ! this.limits[this.selectedSki][useCase] )
+            this.limits[this.selectedSki][useCase] = {} as Limits;
+      }
+      else if ( useCase == "MGCP") {
+        if ( ! this.monitorings[this.selectedSki] )
+            this.monitorings[this.selectedSki] = {} as MonitoringGCP;
+      }
     }
 
     public serviceSelected() {
@@ -400,42 +492,42 @@
       if ( ! this.socket )
         return;
       
-      this.sendLimits( MessageType.SetConsumptionLimit, this.dd[this.selectedSki]['LPC'] );
+      this.sendLimits( MessageType.SetConsumptionLimit, this.limits[this.selectedSki]['LPC'] );
     }
 
     public setProductionLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendLimits( MessageType.SetProductionLimit, this.dd[this.selectedSki]['LPP'] );
+      this.sendLimits( MessageType.SetProductionLimit, this.limits[this.selectedSki]['LPP'] );
     }
 
     public setConsumptionFailsafeLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetConsumptionFailsafeValue, this.dd[this.selectedSki]['LPC'].FSValue );
+      this.sendValue( MessageType.SetConsumptionFailsafeValue, this.limits[this.selectedSki]['LPC'].FSValue );
     }
 
     public setConsumptionFailsafeDuration() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetConsumptionFailsafeDuration, this.dd[this.selectedSki]['LPC'].FSDuration );
+      this.sendValue( MessageType.SetConsumptionFailsafeDuration, this.limits[this.selectedSki]['LPC'].FSDuration );
     }
 
     public setProductionFailsafeLimit() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetProductionFailsafeValue, this.dd[this.selectedSki]['LPP'].FSValue );
+      this.sendValue( MessageType.SetProductionFailsafeValue, this.limits[this.selectedSki]['LPP'].FSValue );
     }
 
     public setProductionFailsafeDuration() {
       if ( ! this.socket )
         return;
       
-      this.sendValue( MessageType.SetProductionFailsafeDuration, this.dd[this.selectedSki]['LPP'].FSDuration );
+      this.sendValue( MessageType.SetProductionFailsafeDuration, this.limits[this.selectedSki]['LPP'].FSDuration );
     }
 
     // public getConsumptionNominalMax() {
@@ -508,25 +600,35 @@
     grid-row-start: 1;
     grid-row-end: 4;
   }
-  .form-line {
+  .form-line3 {
     display: grid;
     grid-template-columns: 50fr 30fr 20fr;
     column-gap: 10px;
   }
-  .form-line label {
+  .form-line3 label {
     align-content: center;
     text-align: left;
   }
-  .form-line input {
+  .form-line3 input {
     font-size: initial;
     width: 100px;
     align-self: center;
   }
-  .form-line button {
+  .form-line3 button {
     line-height: 5px;
     height: 100%;
   }
   
+  .form-line2 {
+    display: grid;
+    grid-template-columns: 50fr 50fr;
+    column-gap: 10px;
+  }
+  .form-line2 label {
+    align-content: center;
+    text-align: left;
+  }
+
   .pulse {
     font-size: 25px;
   }

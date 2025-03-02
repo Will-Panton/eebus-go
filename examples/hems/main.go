@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"strconv"
@@ -20,9 +21,7 @@ import (
 	"github.com/enbility/eebus-go/usecases/cem/vapd"
 	cslpc "github.com/enbility/eebus-go/usecases/cs/lpc"
 	cslpp "github.com/enbility/eebus-go/usecases/cs/lpp"
-	eglpc "github.com/enbility/eebus-go/usecases/eg/lpc"
-	eglpp "github.com/enbility/eebus-go/usecases/eg/lpp"
-	"github.com/enbility/eebus-go/usecases/ma/mgcp"
+	"github.com/enbility/eebus-go/usecases/gcp/mgcp"
 	shipapi "github.com/enbility/ship-go/api"
 	"github.com/enbility/ship-go/cert"
 	spineapi "github.com/enbility/spine-go/api"
@@ -34,13 +33,20 @@ var remoteSki string
 type hems struct {
 	myService *service.Service
 
-	uccslpc   ucapi.CsLPCInterface
-	uccslpp   ucapi.CsLPPInterface
-	uceglpc   ucapi.EgLPCInterface
-	uceglpp   ucapi.EgLPPInterface
-	ucmamgcp  ucapi.MaMGCPInterface
+	uccslpc ucapi.CsLPCInterface
+	uccslpp ucapi.CsLPPInterface
+	// uceglpc   ucapi.EgLPCInterface
+	// uceglpp   ucapi.EgLPPInterface
+	ucgcpmgcp ucapi.GcpMGCPInterface
 	uccemvabd ucapi.CemVABDInterface
 	uccemvapd ucapi.CemVAPDInterface
+
+	gridPower          float64
+	gridConsumedEnergy float64
+	gridFeedInEnergy   float64
+	gridCurrent        []float64
+	gridVoltage        []float64
+	gridFrequency      float64
 }
 
 func (h *hems) run() {
@@ -105,41 +111,96 @@ func (h *hems) run() {
 	h.myService.AddUseCase(h.uccslpc)
 	h.uccslpp = cslpp.NewLPP(localEntity, h.OnLPPEvent)
 	h.myService.AddUseCase(h.uccslpp)
-	h.uceglpc = eglpc.NewLPC(localEntity, nil)
-	h.myService.AddUseCase(h.uceglpc)
-	h.uceglpp = eglpp.NewLPP(localEntity, nil)
-	h.myService.AddUseCase(h.uceglpp)
-	h.ucmamgcp = mgcp.NewMGCP(localEntity, h.OnMGCPEvent)
-	h.myService.AddUseCase(h.ucmamgcp)
+	// h.uceglpc = eglpc.NewLPC(localEntity, nil)
+	// h.myService.AddUseCase(h.uceglpc)
+	// h.uceglpp = eglpp.NewLPP(localEntity, nil)
+	// h.myService.AddUseCase(h.uceglpp)
+	h.ucgcpmgcp = mgcp.NewMGCP(localEntity, h.OnMGCPEvent)
+	h.myService.AddUseCase(h.ucgcpmgcp)
 	h.uccemvabd = vabd.NewVABD(localEntity, h.OnVABDEvent)
 	h.myService.AddUseCase(h.uccemvabd)
 	h.uccemvapd = vapd.NewVAPD(localEntity, h.OnVAPDEvent)
 	h.myService.AddUseCase(h.uccemvapd)
 
 	// Initialize local server data
-	_ = h.uccslpc.SetConsumptionNominalMax(34500)
 	_ = h.uccslpc.SetConsumptionLimit(ucapi.LoadLimit{
 		Value:        4200,
 		Duration:     2 * time.Hour,
 		IsChangeable: true,
-		IsActive:     true,
+		IsActive:     false,
 	})
 	_ = h.uccslpc.SetFailsafeConsumptionActivePowerLimit(4200, true)
 	_ = h.uccslpc.SetFailsafeDurationMinimum(2*time.Hour, true)
+	_ = h.uccslpc.SetConsumptionNominalMax(34500)
 
-	_ = h.uccslpp.SetProductionNominalMax(10000)
 	_ = h.uccslpp.SetProductionLimit(ucapi.LoadLimit{
 		Value:        3000,
 		Duration:     2 * time.Hour,
 		IsChangeable: true,
-		IsActive:     true,
+		IsActive:     false,
 	})
 	_ = h.uccslpp.SetFailsafeProductionActivePowerLimit(3000, true)
 	_ = h.uccslpp.SetFailsafeDurationMinimum(2*time.Hour, true)
+	_ = h.uccslpp.SetProductionNominalMax(10000)
 
+	//_ = h.ucmamgcp.
 	if len(remoteSki) == 0 {
 		os.Exit(0)
 	}
+
+	h.gridPower = 3000
+	h.gridConsumedEnergy = 12345
+	h.gridFeedInEnergy = 1000
+	h.gridCurrent = []float64{10, 20, 30}
+	h.gridVoltage = []float64{229, 230, 231}
+	h.gridFrequency = 50
+
+	ticker := time.NewTicker(3000 * time.Millisecond)
+	go func() {
+		for range ticker.C {
+			_ = h.ucgcpmgcp.SetPower(math.Abs(h.gridPower))
+			switch h.gridPower {
+			case 3000:
+				h.gridPower = 3100
+			case 3100:
+				h.gridPower = -3000
+			case -3000:
+				h.gridPower = 2900
+			case 2900:
+				h.gridPower = 3000
+			}
+
+			_ = h.ucgcpmgcp.SetEnergyConsumed(h.gridConsumedEnergy)
+			h.gridConsumedEnergy++
+
+			_ = h.ucgcpmgcp.SetEnergyFeedIn(h.gridFeedInEnergy)
+			h.gridFeedInEnergy++
+
+			_ = h.ucgcpmgcp.SetCurrentPerPhase(h.gridCurrent)
+			tmp := h.gridCurrent[0]
+			h.gridCurrent[0] = h.gridCurrent[1]
+			h.gridCurrent[1] = h.gridCurrent[2]
+			h.gridCurrent[2] = tmp
+
+			_ = h.ucgcpmgcp.SetVoltagePerPhase(h.gridVoltage)
+			tmp = h.gridVoltage[0]
+			h.gridVoltage[0] = h.gridVoltage[1]
+			h.gridVoltage[1] = h.gridVoltage[2]
+			h.gridVoltage[2] = tmp
+
+			_ = h.ucgcpmgcp.SetFrequency(math.Abs(h.gridFrequency))
+			switch h.gridFrequency {
+			case 50:
+				h.gridFrequency = 51
+			case 51:
+				h.gridFrequency = -50
+			case -50:
+				h.gridFrequency = 49
+			case 49:
+				h.gridFrequency = 50
+			}
+		}
+	}()
 
 	h.myService.RegisterRemoteSKI(remoteSki)
 
@@ -182,6 +243,8 @@ func (h *hems) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 				fmt.Println("New LPC Failsafe Duration set not changeable")
 			}
 		}
+	case cslpc.DataUpdateHeartbeat:
+		_ = h.uccslpc.SetConsumptionNominalMax(34500)
 	}
 }
 
@@ -220,6 +283,7 @@ func (h *hems) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 				fmt.Println("New LPP Failsafe Duration set not changeable")
 			}
 		}
+	case cslpp.DataUpdateHeartbeat:
 	}
 }
 
@@ -268,42 +332,16 @@ func (h *hems) OnVAPDEvent(ski string, device spineapi.DeviceRemoteInterface, en
 // Monitoring Appliance MGCP Event Handler
 
 func (h *hems) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	switch event {
-	case mgcp.DataUpdatePowerLimitationFactor:
-		if factor, err := h.ucmamgcp.PowerLimitationFactor(entity); err == nil {
-			fmt.Println("New MGCP Power Limitation Factor set to", factor)
-		}
-	case mgcp.DataUpdatePower:
-		if power, err := h.ucmamgcp.Power(entity); err == nil {
-			fmt.Println("New MGCP Power set to", power, "W")
-		}
-	case mgcp.DataUpdateEnergyFeedIn:
-		if energy, err := h.ucmamgcp.EnergyFeedIn(entity); err == nil {
-			fmt.Println("New MGCP Energy Feed-In set to", energy, "Wh")
-		}
-	case mgcp.DataUpdateEnergyConsumed:
-		if energy, err := h.ucmamgcp.EnergyConsumed(entity); err == nil {
-			fmt.Println("New MGCP Energy Consumed set to", energy, "Wh")
-		}
-	case mgcp.DataUpdateCurrentPerPhase:
-		if current, err := h.ucmamgcp.CurrentPerPhase(entity); err == nil {
-			fmt.Println("New MGCP Current per Phase set to", current, "A")
-		}
-	case mgcp.DataUpdateVoltagePerPhase:
-		if voltage, err := h.ucmamgcp.VoltagePerPhase(entity); err == nil {
-			fmt.Println("New MGCP Voltage per Phase set to", voltage, "V")
-		}
-	case mgcp.DataUpdateFrequency:
-		if frequency, err := h.ucmamgcp.Frequency(entity); err == nil {
-			fmt.Println("New MGCP Frequency set to", frequency, "Hz")
-		}
-	}
 }
 
 // EEBUSServiceHandler
 
 func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIConnected", ski)
+
+	time.AfterFunc(1*time.Second, func() {
+		_ = h.ucgcpmgcp.SetPowerLimitationFactor(70)
+	})
 }
 
 func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {

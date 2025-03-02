@@ -10,7 +10,6 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/enbility/spine-go/api"
 	spineapi "github.com/enbility/spine-go/api"
 	"github.com/enbility/spine-go/model"
 )
@@ -33,7 +32,7 @@ func transformReturnValues(values []reflect.Value) []interface{} {
 		case reflect.TypeFor[spineapi.DeviceRemoteInterface]():
 			result[i] = e.Interface().(spineapi.DeviceRemoteInterface).Address()
 		case reflect.TypeFor[[]spineapi.DeviceRemoteInterface]():
-			rawValues := e.Interface().([]api.DeviceRemoteInterface)
+			rawValues := e.Interface().([]spineapi.DeviceRemoteInterface)
 			transformedValues := make([]model.AddressDeviceType, len(rawValues))
 
 			for j, r := range rawValues {
@@ -43,7 +42,7 @@ func transformReturnValues(values []reflect.Value) []interface{} {
 		case reflect.TypeFor[spineapi.EntityRemoteInterface]():
 			result[i] = e.Interface().(spineapi.EntityRemoteInterface).Address()
 		case reflect.TypeFor[[]spineapi.EntityRemoteInterface]():
-			rawValues := e.Interface().([]api.EntityRemoteInterface)
+			rawValues := e.Interface().([]spineapi.EntityRemoteInterface)
 			transformedValues := make([]model.EntityAddressType, len(rawValues))
 
 			for j, r := range rawValues {
