@@ -81,7 +81,7 @@ func (e *MGCP) SetPowerLimitationFactor(value float64) error {
 		},
 		nil,
 		model.DeviceConfigurationKeyValueDescriptionDataType{
-			KeyName: util.Ptr( /*model.*/ DeviceConfigurationKeyNameTypePowerLimitationFactor),
+			KeyName: util.Ptr(model.DeviceConfigurationKeyNameTypePvCurtailmentLimitFactor),
 		},
 	)
 

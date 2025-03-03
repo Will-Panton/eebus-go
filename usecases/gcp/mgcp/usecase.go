@@ -11,29 +11,6 @@ import (
 	"github.com/enbility/spine-go/util"
 )
 
-const (
-	UseCaseActorTypeConnectionPoint model.UseCaseActorType = "GridConnectionPoint"
-)
-
-const (
-	FeatureTypeTypeDeviceInformation model.FeatureTypeType = "DeviceInformation"
-)
-
-const (
-	FunctionTypeNodeManagement model.FunctionType = "nodeManagement"
-)
-
-const (
-	DeviceConfigurationKeyNameTypePowerLimitationFactor model.DeviceConfigurationKeyNameType = "pvCurtailmentLimitFactor"
-
-// DeviceConfigurationKeyNameTypePower                 model.DeviceConfigurationKeyNameType = "acPowerTotal"
-// DeviceConfigurationKeyNameTypeEnergyFeedIn          model.DeviceConfigurationKeyNameType = "gridFeedInEnergy"
-// DeviceConfigurationKeyNameTypeEnergyConsumed        model.DeviceConfigurationKeyNameType = "gridConsumptionEnergy"
-// DeviceConfigurationKeyNameTypeCurrentPerPhase       model.DeviceConfigurationKeyNameType = "acCurrentPhaseSpecific"
-// DeviceConfigurationKeyNameTypeVoltagePerPhase       model.DeviceConfigurationKeyNameType = "acVoltagePhaseSpecific"
-// DeviceConfigurationKeyNameTypeFrequency             model.DeviceConfigurationKeyNameType = "acFrequency"
-)
-
 type MGCP struct {
 	*usecase.UseCaseBase
 }
@@ -47,7 +24,7 @@ var _ ucapi.GcpMGCPInterface = (*MGCP)(nil)
 //   - localEntity: The local entity which should support the use case
 //   - eventCB: The callback to be called when an event is triggered (optional, can be nil)
 func NewMGCP(localEntity spineapi.EntityLocalInterface, eventCB api.EntityEventCallback) *MGCP {
-	validActorTypes := []model.UseCaseActorType{ /*model.*/ UseCaseActorTypeConnectionPoint}
+	validActorTypes := []model.UseCaseActorType{model.UseCaseActorTypeGridConnectionPoint}
 	validEntityTypes := []model.EntityTypeType{
 		model.EntityTypeTypeControllableSystem,
 	}
@@ -84,7 +61,7 @@ func NewMGCP(localEntity spineapi.EntityLocalInterface, eventCB api.EntityEventC
 
 	usecase := usecase.NewUseCaseBase(
 		localEntity,
-		/*model.*/ UseCaseActorTypeConnectionPoint,
+		model.UseCaseActorTypeGridConnectionPoint,
 		model.UseCaseNameTypeMonitoringOfGridConnectionPoint,
 		"1.0.0",
 		"release",
@@ -113,7 +90,7 @@ func (e *MGCP) AddFeatures() {
 	if dcs, err := server.NewDeviceConfiguration(e.LocalEntity); err == nil {
 		dcs.AddKeyValueDescription(
 			model.DeviceConfigurationKeyValueDescriptionDataType{
-				KeyName:   util.Ptr( /*model.*/ DeviceConfigurationKeyNameTypePowerLimitationFactor),
+				KeyName:   util.Ptr(model.DeviceConfigurationKeyNameTypePvCurtailmentLimitFactor),
 				ValueType: util.Ptr(model.DeviceConfigurationKeyValueTypeTypeScaledNumber),
 				Unit:      util.Ptr(model.UnitOfMeasurementTypepct),
 			},
@@ -129,7 +106,7 @@ func (e *MGCP) AddFeatures() {
 			},
 			nil,
 			model.DeviceConfigurationKeyValueDescriptionDataType{
-				KeyName: util.Ptr( /*model.*/ DeviceConfigurationKeyNameTypePowerLimitationFactor),
+				KeyName: util.Ptr(model.DeviceConfigurationKeyNameTypePvCurtailmentLimitFactor),
 			},
 		)
 	}
@@ -142,73 +119,73 @@ func (e *MGCP) AddFeatures() {
 		MeasurementDescriptionData: []model.MeasurementDescriptionDataType{
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(0)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("power")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("W")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acPowerTotal")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypePower),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeW),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACPowerTotal),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(1)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("energy")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("Wh")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("gridFeedIn")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeEnergy),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeWh),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeGridFeedIn),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(2)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("energy")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("Wh")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("gridConsumption")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeEnergy),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeWh),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeGridConsumption),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(3)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("current")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("A")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acCurrent")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeCurrent),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeA),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACCurrent),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(4)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("current")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("A")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acCurrent")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeCurrent),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeA),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACCurrent),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(5)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("current")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("A")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acCurrent")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeCurrent),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeA),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACCurrent),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(6)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("voltage")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("V")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acVoltage")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeVoltage),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeV),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACVoltage),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(7)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("voltage")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("V")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acVoltage")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeVoltage),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeV),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACVoltage),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(8)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("voltage")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("V")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acVoltage")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeVoltage),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeV),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACVoltage),
 			},
 			{
 				MeasurementId:   util.Ptr(model.MeasurementIdType(9)),
-				MeasurementType: util.Ptr(model.MeasurementTypeType("frequency")),
-				CommodityType:   util.Ptr(model.CommodityTypeType("electricity")),
-				Unit:            util.Ptr(model.UnitOfMeasurementType("Hz")),
-				ScopeType:       util.Ptr(model.ScopeTypeType("acFrequency")),
+				MeasurementType: util.Ptr(model.MeasurementTypeTypeFrequency),
+				CommodityType:   util.Ptr(model.CommodityTypeTypeElectricity),
+				Unit:            util.Ptr(model.UnitOfMeasurementTypeHz),
+				ScopeType:       util.Ptr(model.ScopeTypeTypeACFrequency),
 			},
 		},
 	}
