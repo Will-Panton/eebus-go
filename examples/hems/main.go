@@ -368,7 +368,7 @@ func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIConnected", ski)
 
 	time.AfterFunc(1*time.Second, func() {
-		//_ = h.ucgcpmgcp.SetPowerLimitationFactor(h.gridPowerLimitFactor)
+		_ = h.ucgcpmgcp.SetPowerLimitationFactor(h.gridPowerLimitFactor)
 	})
 }
 
