@@ -50,11 +50,12 @@ const (
 	StartProductionHeartbeat       = 27
 	GetPowerLimitationFactor       = 28
 	GetPower                       = 29
-	GetEnergyFeedIn                = 30
-	GetEnergyConsumed              = 31
-	GetCurrentPerPhase             = 32
-	GetVoltagePerPhase             = 33
-	GetFrequency                   = 34
+	GetPowerPerPhase               = 30
+	GetEnergyFeedIn                = 31
+	GetEnergyConsumed              = 32
+	GetCurrentPerPhase             = 33
+	GetVoltagePerPhase             = 34
+	GetFrequency                   = 35
 )
 
 type RemoteInfo struct {

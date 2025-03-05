@@ -17,8 +17,8 @@ type MGCP struct {
 
 var _ ucapi.GcpMGCPInterface = (*MGCP)(nil)
 
-// Add support for the Limitation of Power Consumption (LPC) use case
-// as a Controllable System actor
+// Add support for the Monitoring of Grid Connection Point (MGCP) use case
+// as a Grid Connection Point actor
 //
 // Parameters:
 //   - localEntity: The local entity which should support the use case
@@ -26,7 +26,8 @@ var _ ucapi.GcpMGCPInterface = (*MGCP)(nil)
 func NewMGCP(localEntity spineapi.EntityLocalInterface, eventCB api.EntityEventCallback) *MGCP {
 	validActorTypes := []model.UseCaseActorType{model.UseCaseActorTypeGridConnectionPoint}
 	validEntityTypes := []model.EntityTypeType{
-		model.EntityTypeTypeControllableSystem,
+		model.EntityTypeTypeCEM,
+		model.EntityTypeTypeGridConnectionPointOfPremises,
 	}
 	useCaseScenarios := []api.UseCaseScenario{
 		{
@@ -199,7 +200,7 @@ func (e *MGCP) AddFeatures() {
 		MeasurementData: []model.MeasurementDataType{
 			{
 				MeasurementId: util.Ptr(model.MeasurementIdType(0)),
-				Value:         model.NewScaledNumberType(11),
+				Value:         model.NewScaledNumberType(0),
 				ValueType:     util.Ptr(model.MeasurementValueTypeTypeValue),
 				ValueSource:   util.Ptr(model.MeasurementValueSourceTypeMeasuredValue),
 			},

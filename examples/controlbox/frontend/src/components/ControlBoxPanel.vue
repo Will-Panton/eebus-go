@@ -26,12 +26,12 @@
     </div>
 
     <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
+      <label class="device-select-label">Device Type:</label>
+      <label class="device-select-label">{{ deviceType }}</label>
       <label class="device-select-label">Entities:</label>
       <VueSelect v-model="selectedEntity" :options="optionEntities"
         v-bind:placeholder="optionEntities.length + (optionEntities.length == 1 ? ' entity' : ' entities')">
       </VueSelect>
-      <label class="device-select-label">Device Type:</label>
-      <label class="device-select-label">{{ deviceType }}</label>
       <label class="device-select-label">Features:</label>
       <VueSelect :options="optionFeatures"
         v-bind:placeholder="optionFeatures.length == 0 ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
@@ -62,7 +62,6 @@
           <label>Nominal Maximum [W]:</label>
           <input type="number" v-model="consumptionNominalMax" />
           <div></div>
-          <!-- <button type="button" @click="getConsumptionNominalMax">Get</button> -->
 
           <label>Heartbeat:</label>
           <span v-bind:class = "(consumptionHeartbeat)?'pulse heartbeat':'pulse'">&#9673;</span>
@@ -70,6 +69,7 @@
           <div></div>
         </div>
       </div>
+
       <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPP']">
         <h3>Production Limit</h3>
         <div class="form-line3">
@@ -101,37 +101,74 @@
           <div></div>
         </div>
       </div>
-      <div v-if="'' < selectedSki && !!monitorings[selectedSki]">
+
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MGCP']">
         <h3>Monitoring Grid Connection Point</h3>
         <div class="form-line2">
           <label>Power Limitation Factor:</label>
-          <label>{{ monitorings[selectedSki].PowerLimitationFactor ?? 0 }} %</label>
+          <label>{{ selectedMs['MGCP'].PowerLimitationFactor ?? 0 }} %</label>
 
           <label>Power:</label>
-          <label>{{ monitorings[selectedSki].Power ?? 0 }} W</label>
+          <label>{{ selectedMs['MGCP'].Power ?? 0 }} W</label>
 
           <label>Energy FeedIn:</label>
-          <label>{{ monitorings[selectedSki].EnergyFeedIn ?? 0 }} Wh</label>
+          <label>{{ selectedMs['MGCP'].EnergyFeedIn ?? 0 }} Wh</label>
 
           <label>Energy Consumed:</label>
-          <label>{{ monitorings[selectedSki].EnergyConsumed ?? 0 }} Wh</label>
+          <label>{{ selectedMs['MGCP'].EnergyConsumed ?? 0 }} Wh</label>
 
           <label>Currents per Phase:</label>
-          <label>{{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[0] }} A,
-                 {{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[1] }} A,
-                 {{ ! monitorings[selectedSki].CurrentPerPhase ? '0' : monitorings[selectedSki].CurrentPerPhase[2] }} A
+          <label>{{ ! selectedMs['MGCP'].CurrentPerPhase ? '0' : selectedMs['MGCP'].CurrentPerPhase[0] }} A,
+                 {{ ! selectedMs['MGCP'].CurrentPerPhase ? '0' : selectedMs['MGCP'].CurrentPerPhase[1] }} A,
+                 {{ ! selectedMs['MGCP'].CurrentPerPhase ? '0' : selectedMs['MGCP'].CurrentPerPhase[2] }} A
           </label>
 
           <label>Voltages per Phase:</label>
-          <label>{{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[0] }} V,
-                 {{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[1] }} V,
-                 {{ ! monitorings[selectedSki].VoltagePerPhase ? '0' : monitorings[selectedSki].VoltagePerPhase[2] }} V
+          <label>{{ ! selectedMs['MGCP'].VoltagePerPhase ? '0' : selectedMs['MGCP'].VoltagePerPhase[0] }} V,
+                 {{ ! selectedMs['MGCP'].VoltagePerPhase ? '0' : selectedMs['MGCP'].VoltagePerPhase[1] }} V,
+                 {{ ! selectedMs['MGCP'].VoltagePerPhase ? '0' : selectedMs['MGCP'].VoltagePerPhase[2] }} V
           </label>
 
           <label>Frequency:</label>
-          <label>{{ monitorings[selectedSki].Frequency ?? 0 }} Hz</label>
+          <label>{{ selectedMs['MGCP'].Frequency ?? 0 }} Hz</label>
         </div>
       </div>
+
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MPC']">
+        <h3>Monitoring Power Consumption</h3>
+        <div class="form-line2">
+          <label>Power:</label>
+          <label>{{ selectedMs['MPC'].Power ?? 0 }} W</label>
+
+          <label>Power per Phase:</label>
+          <label>{{ ! selectedMs['MPC'].PowerPerPhase ? '0' : selectedMs['MPC'].PowerPerPhase[0] }} W,
+                 {{ ! selectedMs['MPC'].PowerPerPhase ? '0' : selectedMs['MPC'].PowerPerPhase[1] }} W,
+                 {{ ! selectedMs['MPC'].PowerPerPhase ? '0' : selectedMs['MPC'].PowerPerPhase[2] }} W
+          </label>
+
+          <label>Energy FeedIn:</label>
+          <label>{{ selectedMs['MPC'].EnergyFeedIn ?? 0 }} Wh</label>
+
+          <label>Energy Consumed:</label>
+          <label>{{ selectedMs['MPC'].EnergyConsumed ?? 0 }} Wh</label>
+
+          <label>Currents per Phase:</label>
+          <label>{{ ! selectedMs['MPC'].CurrentPerPhase ? '0' : selectedMs['MPC'].CurrentPerPhase[0] }} A,
+                 {{ ! selectedMs['MPC'].CurrentPerPhase ? '0' : selectedMs['MPC'].CurrentPerPhase[1] }} A,
+                 {{ ! selectedMs['MPC'].CurrentPerPhase ? '0' : selectedMs['MPC'].CurrentPerPhase[2] }} A
+          </label>
+
+          <label>Voltages per Phase:</label>
+          <label>{{ ! selectedMs['MPC'].VoltagePerPhase ? '0' : selectedMs['MPC'].VoltagePerPhase[0] }} V,
+                 {{ ! selectedMs['MPC'].VoltagePerPhase ? '0' : selectedMs['MPC'].VoltagePerPhase[1] }} V,
+                 {{ ! selectedMs['MPC'].VoltagePerPhase ? '0' : selectedMs['MPC'].VoltagePerPhase[2] }} V
+          </label>
+
+          <label>Frequency:</label>
+          <label>{{ selectedMs['MPC'].Frequency ?? 0 }} Hz</label>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -140,7 +177,6 @@
   import { Component, Vue, toNative } from 'vue-facing-decorator'
   import QrcodeVue from 'qrcode.vue'
   import VueSelect from 'vue3-select-component'
-  //import { reactive } from 'vue'
 
   enum MessageType {
     Text                           = 0,
@@ -173,11 +209,12 @@
     StartProductionHeartbeat       = 27,
   	GetPowerLimitationFactor       = 28,
   	GetPower                       = 29,
-	  GetEnergyFeedIn                = 30,
-	  GetEnergyConsumed              = 31,
-	  GetCurrentPerPhase             = 32,
-	  GetVoltagePerPhase             = 33,
-	  GetFrequency                   = 34
+    GetPowerPerPhase               = 30,
+	  GetEnergyFeedIn                = 31,
+	  GetEnergyConsumed              = 32,
+	  GetCurrentPerPhase             = 33,
+	  GetVoltagePerPhase             = 34,
+	  GetFrequency                   = 35
 }
 
   interface Limits {
@@ -188,9 +225,10 @@
 	  FSDuration: number
   }
 
-  interface MonitoringGCP {
+  interface Monitorings {
     PowerLimitationFactor: number,
     Power: number,
+    PowerPerPhase: number[],
     EnergyFeedIn: number,
     EnergyConsumed: number,
     CurrentPerPhase: number[],
@@ -230,7 +268,8 @@
 
   type UCLimits = {[key:string]:Limits};
   type LimitData = {[key:string]:UCLimits};
-  type MonitoringData = {[key:string]:MonitoringGCP};
+  type UCMonitorings = {[key:string]:Monitorings};
+  type MonitoringData = {[key:string]:UCMonitorings};
 
   @Component({
     components: {
@@ -251,6 +290,10 @@
 
     public get selectedDd() {
       return this.limits[this.selectedSki];
+    }
+
+    public get selectedMs() {
+      return this.monitorings[this.selectedSki];
     }
 
     public get optionServices() {
@@ -397,37 +440,42 @@
           }
           case MessageType.GetPowerLimitationFactor: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].PowerLimitationFactor = message.Value ?? 0;
+            this.monitorings[this.selectedSki][message.UseCase!].PowerLimitationFactor = message.Value ?? 0;
             break;
           }
 	        case MessageType.GetPower: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].Power = message.Value ?? 0;
+            this.monitorings[this.selectedSki][message.UseCase!].Power = message.Value ?? 0;
+            break;
+          }
+        	case MessageType.GetPowerPerPhase: {
+            this.updateDeviceData( message.UseCase! );
+            this.monitorings[this.selectedSki][message.UseCase!].PowerPerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetEnergyFeedIn: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].EnergyFeedIn = message.Value ?? 0;
+            this.monitorings[this.selectedSki][message.UseCase!].EnergyFeedIn = message.Value ?? 0;
             break;
           }
         	case MessageType.GetEnergyConsumed: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].EnergyConsumed = message.Value ?? 0;
+            this.monitorings[this.selectedSki][message.UseCase!].EnergyConsumed = message.Value ?? 0;
             break;
           }
         	case MessageType.GetCurrentPerPhase: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].CurrentPerPhase = message.Values ?? [0, 0, 0];
+            this.monitorings[this.selectedSki][message.UseCase!].CurrentPerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetVoltagePerPhase: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].VoltagePerPhase = message.Values ?? [0, 0, 0];
+            this.monitorings[this.selectedSki][message.UseCase!].VoltagePerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetFrequency: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki].Frequency = message.Value ?? 0;
+            this.monitorings[this.selectedSki][message.UseCase!].Frequency = message.Value ?? 0;
             break;
           }
         }   
@@ -437,13 +485,15 @@
     private updateDeviceData( useCase: string ) {
       if ( useCase == "LPC" || useCase == "LPP" ) {
         if ( ! this.limits[this.selectedSki] )
-            this.limits[this.selectedSki] = {};
+          this.limits[this.selectedSki] = {};
         if ( ! this.limits[this.selectedSki][useCase] )
-            this.limits[this.selectedSki][useCase] = {} as Limits;
+          this.limits[this.selectedSki][useCase] = {} as Limits;
       }
-      else if ( useCase == "MGCP") {
+      else if ( useCase == "MGCP" || useCase == "MPC" ) {
         if ( ! this.monitorings[this.selectedSki] )
-            this.monitorings[this.selectedSki] = {} as MonitoringGCP;
+          this.monitorings[this.selectedSki] = {};
+        if ( ! this.monitorings[this.selectedSki][useCase] )
+          this.monitorings[this.selectedSki][useCase] = {} as Monitorings;
       }
     }
 
@@ -529,13 +579,6 @@
       
       this.sendValue( MessageType.SetProductionFailsafeDuration, this.limits[this.selectedSki]['LPP'].FSDuration );
     }
-
-    // public getConsumptionNominalMax() {
-    //   if ( ! this.socket )
-    //     return;
-      
-    //   this.sendValue( MessageType.GetConsumptionNominalMax, 0 );
-    // }
 
     public toggleConsumptionHeartbeat() {
       if ( ! this.socket )

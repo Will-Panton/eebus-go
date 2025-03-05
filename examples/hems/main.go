@@ -21,7 +21,8 @@ import (
 	"github.com/enbility/eebus-go/usecases/cem/vapd"
 	cslpc "github.com/enbility/eebus-go/usecases/cs/lpc"
 	cslpp "github.com/enbility/eebus-go/usecases/cs/lpp"
-	"github.com/enbility/eebus-go/usecases/gcp/mgcp"
+	gcpmgcp "github.com/enbility/eebus-go/usecases/gcp/mgcp"
+	mumpc "github.com/enbility/eebus-go/usecases/mu/mpc"
 	shipapi "github.com/enbility/ship-go/api"
 	"github.com/enbility/ship-go/cert"
 	spineapi "github.com/enbility/spine-go/api"
@@ -38,15 +39,19 @@ type hems struct {
 	// uceglpc   ucapi.EgLPCInterface
 	// uceglpp   ucapi.EgLPPInterface
 	ucgcpmgcp ucapi.GcpMGCPInterface
+	ucmumpc   ucapi.MuMPCInterface
+
 	uccemvabd ucapi.CemVABDInterface
 	uccemvapd ucapi.CemVAPDInterface
 
-	gridPower          float64
-	gridConsumedEnergy float64
-	gridFeedInEnergy   float64
-	gridCurrent        []float64
-	gridVoltage        []float64
-	gridFrequency      float64
+	gridPowerLimitFactor float64
+	gridPower            float64
+	gridPowerPerPhase    []float64
+	gridConsumedEnergy   float64
+	gridFeedInEnergy     float64
+	gridCurrentPerPhase  []float64
+	gridVoltagePerPhase  []float64
+	gridFrequency        float64
 }
 
 func (h *hems) run() {
@@ -91,7 +96,7 @@ func (h *hems) run() {
 		"Demo", "Demo", "HEMS", "123456789",
 		[]shipapi.DeviceCategoryType{shipapi.DeviceCategoryTypeEnergyManagementSystem},
 		model.DeviceTypeTypeEnergyManagementSystem,
-		[]model.EntityTypeType{model.EntityTypeTypeCEM},
+		[]model.EntityTypeType{model.EntityTypeTypeCEM, model.EntityTypeTypeSubMeterElectricity},
 		port, certificate, time.Second*4)
 	if err != nil {
 		log.Fatal(err)
@@ -106,21 +111,25 @@ func (h *hems) run() {
 		return
 	}
 
-	localEntity := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeCEM)
-	h.uccslpc = cslpc.NewLPC(localEntity, h.OnLPCEvent)
+	localEntityCEM := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeCEM)
+	h.uccslpc = cslpc.NewLPC(localEntityCEM, h.OnLPCEvent)
 	h.myService.AddUseCase(h.uccslpc)
-	h.uccslpp = cslpp.NewLPP(localEntity, h.OnLPPEvent)
+	h.uccslpp = cslpp.NewLPP(localEntityCEM, h.OnLPPEvent)
 	h.myService.AddUseCase(h.uccslpp)
-	// h.uceglpc = eglpc.NewLPC(localEntity, nil)
+	// h.uceglpc = eglpc.NewLPC(localEntityCEM, nil)
 	// h.myService.AddUseCase(h.uceglpc)
-	// h.uceglpp = eglpp.NewLPP(localEntity, nil)
+	// h.uceglpp = eglpp.NewLPP(localEntityCEM, nil)
 	// h.myService.AddUseCase(h.uceglpp)
-	h.ucgcpmgcp = mgcp.NewMGCP(localEntity, h.OnMGCPEvent)
+	h.ucgcpmgcp = gcpmgcp.NewMGCP(localEntityCEM, h.OnMGCPEvent)
 	h.myService.AddUseCase(h.ucgcpmgcp)
-	h.uccemvabd = vabd.NewVABD(localEntity, h.OnVABDEvent)
+	h.uccemvabd = vabd.NewVABD(localEntityCEM, h.OnVABDEvent)
 	h.myService.AddUseCase(h.uccemvabd)
-	h.uccemvapd = vapd.NewVAPD(localEntity, h.OnVAPDEvent)
+	h.uccemvapd = vapd.NewVAPD(localEntityCEM, h.OnVAPDEvent)
 	h.myService.AddUseCase(h.uccemvapd)
+
+	localEntitySME := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeSubMeterElectricity)
+	h.ucmumpc = mumpc.NewMPC(localEntitySME, h.OnMPCEvent)
+	h.myService.AddUseCase(h.ucmumpc)
 
 	// Initialize local server data
 	_ = h.uccslpc.SetConsumptionLimit(ucapi.LoadLimit{
@@ -148,17 +157,20 @@ func (h *hems) run() {
 		os.Exit(0)
 	}
 
+	h.gridPowerLimitFactor = 70
 	h.gridPower = 3000
+	h.gridPowerPerPhase = []float64{900, 1000, 1100}
 	h.gridConsumedEnergy = 12345
-	h.gridFeedInEnergy = 1000
-	h.gridCurrent = []float64{10, 20, 30}
-	h.gridVoltage = []float64{229, 230, 231}
+	h.gridFeedInEnergy = -1000
+	h.gridCurrentPerPhase = []float64{10, 20, 30}
+	h.gridVoltagePerPhase = []float64{229, 230, 231}
 	h.gridFrequency = 50
 
 	ticker := time.NewTicker(3000 * time.Millisecond)
 	go func() {
 		for range ticker.C {
 			_ = h.ucgcpmgcp.SetPower(math.Abs(h.gridPower))
+			_ = h.ucmumpc.SetPower(math.Abs(h.gridPower))
 			switch h.gridPower {
 			case 3000:
 				h.gridPower = 3100
@@ -170,25 +182,36 @@ func (h *hems) run() {
 				h.gridPower = 3000
 			}
 
+			_ = h.ucmumpc.SetPowerPerPhase(h.gridPowerPerPhase)
+			tmp := h.gridPowerPerPhase[0]
+			h.gridPowerPerPhase[0] = h.gridPowerPerPhase[1]
+			h.gridPowerPerPhase[1] = h.gridPowerPerPhase[2]
+			h.gridPowerPerPhase[2] = tmp
+
 			_ = h.ucgcpmgcp.SetEnergyConsumed(h.gridConsumedEnergy)
+			_ = h.ucmumpc.SetEnergyConsumed(h.gridConsumedEnergy)
 			h.gridConsumedEnergy++
 
 			_ = h.ucgcpmgcp.SetEnergyFeedIn(h.gridFeedInEnergy)
-			h.gridFeedInEnergy++
+			_ = h.ucmumpc.SetEnergyProduced(h.gridFeedInEnergy)
+			h.gridFeedInEnergy--
 
-			_ = h.ucgcpmgcp.SetCurrentPerPhase(h.gridCurrent)
-			tmp := h.gridCurrent[0]
-			h.gridCurrent[0] = h.gridCurrent[1]
-			h.gridCurrent[1] = h.gridCurrent[2]
-			h.gridCurrent[2] = tmp
+			_ = h.ucgcpmgcp.SetCurrentPerPhase(h.gridCurrentPerPhase)
+			_ = h.ucmumpc.SetCurrentPerPhase(h.gridCurrentPerPhase)
+			tmp = h.gridCurrentPerPhase[0]
+			h.gridCurrentPerPhase[0] = h.gridCurrentPerPhase[1]
+			h.gridCurrentPerPhase[1] = h.gridCurrentPerPhase[2]
+			h.gridCurrentPerPhase[2] = tmp
 
-			_ = h.ucgcpmgcp.SetVoltagePerPhase(h.gridVoltage)
-			tmp = h.gridVoltage[0]
-			h.gridVoltage[0] = h.gridVoltage[1]
-			h.gridVoltage[1] = h.gridVoltage[2]
-			h.gridVoltage[2] = tmp
+			_ = h.ucgcpmgcp.SetVoltagePerPhase(h.gridVoltagePerPhase)
+			_ = h.ucmumpc.SetVoltagePerPhase(h.gridVoltagePerPhase)
+			tmp = h.gridVoltagePerPhase[0]
+			h.gridVoltagePerPhase[0] = h.gridVoltagePerPhase[1]
+			h.gridVoltagePerPhase[1] = h.gridVoltagePerPhase[2]
+			h.gridVoltagePerPhase[2] = tmp
 
 			_ = h.ucgcpmgcp.SetFrequency(math.Abs(h.gridFrequency))
+			_ = h.ucmumpc.SetFrequency(math.Abs(h.gridFrequency))
 			switch h.gridFrequency {
 			case 50:
 				h.gridFrequency = 51
@@ -334,13 +357,18 @@ func (h *hems) OnVAPDEvent(ski string, device spineapi.DeviceRemoteInterface, en
 func (h *hems) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 }
 
+// Monitored Unit MPC Event Handler
+
+func (h *hems) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+}
+
 // EEBUSServiceHandler
 
 func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIConnected", ski)
 
 	time.AfterFunc(1*time.Second, func() {
-		_ = h.ucgcpmgcp.SetPowerLimitationFactor(70)
+		//_ = h.ucgcpmgcp.SetPowerLimitationFactor(h.gridPowerLimitFactor)
 	})
 }
 

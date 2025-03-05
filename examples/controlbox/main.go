@@ -23,6 +23,7 @@ import (
 	"github.com/enbility/eebus-go/usecases/eg/lpc"
 	"github.com/enbility/eebus-go/usecases/eg/lpp"
 	"github.com/enbility/eebus-go/usecases/ma/mgcp"
+	"github.com/enbility/eebus-go/usecases/ma/mpc"
 	shipapi "github.com/enbility/ship-go/api"
 	"github.com/enbility/ship-go/cert"
 	spineapi "github.com/enbility/spine-go/api"
@@ -120,7 +121,7 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 			}
 
 			info := EntityInfo{
-				Name:     entity.Address().String(),
+				Name:     string(entity.EntityType()),
 				SKI:      device.Ski(),
 				Type:     string(*device.DeviceType()),
 				Features: features,
@@ -152,6 +153,7 @@ type controlbox struct {
 	uclpc  ucapi.EgLPCInterface
 	uclpp  ucapi.EgLPPInterface
 	ucmgcp ucapi.MaMGCPInterface
+	ucmpc  ucapi.MaMPCInterface
 
 	isConnected bool
 
@@ -233,6 +235,9 @@ func (h *controlbox) run() {
 
 	h.ucmgcp = mgcp.NewMGCP(localEntity, h.OnMGCPEvent)
 	h.myService.AddUseCase(h.ucmgcp)
+
+	h.ucmpc = mpc.NewMPC(localEntity, h.OnMCPEvent)
+	h.myService.AddUseCase(h.ucmpc)
 
 	h.remoteInfos = map[string]RemoteInfo{}
 
@@ -578,6 +583,63 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 	case mgcp.DataUpdateFrequency:
 		if frequency, err := h.ucmgcp.Frequency(entity); err == nil {
 			frontend.sendValue(GetFrequency, "MGCP", frequency)
+		}
+	}
+}
+
+func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	if !h.isConnected {
+		return
+	}
+
+	switch event {
+	case mpc.UseCaseSupportUpdate:
+		info, exists := h.remoteInfos[ski]
+		if !exists {
+			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
+			h.remoteInfos[ski] = RemoteInfo{
+				Service:  h.currentRemoteServices[indx],
+				Device:   device,
+				UseCases: []string{"MPC"},
+			}
+		} else {
+			info.Device = device
+			found := slices.Contains(info.UseCases, "MPC")
+			if !found {
+				info.UseCases = append(info.UseCases, "MPC")
+				h.remoteInfos[ski] = info
+			}
+		}
+		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+		readData(h, entity, []string{"MPC"})
+
+	case mpc.DataUpdatePower:
+		if power, err := h.ucmpc.Power(entity); err == nil {
+			frontend.sendValue(GetPower, "MPC", power)
+		}
+	case mpc.DataUpdatePowerPerPhase:
+		if powerPerPhase, err := h.ucmpc.PowerPerPhase(entity); err == nil {
+			frontend.sendValueArr(GetPowerPerPhase, "MPC", powerPerPhase)
+		}
+	case mpc.DataUpdateEnergyConsumed:
+		if energyConsumed, err := h.ucmpc.EnergyConsumed(entity); err == nil {
+			frontend.sendValue(GetEnergyConsumed, "MPC", energyConsumed)
+		}
+	case mpc.DataUpdateEnergyProduced:
+		if energyFeedIn, err := h.ucmpc.EnergyProduced(entity); err == nil {
+			frontend.sendValue(GetEnergyFeedIn, "MPC", energyFeedIn)
+		}
+	case mpc.DataUpdateCurrentsPerPhase:
+		if currentPerPhase, err := h.ucmpc.CurrentPerPhase(entity); err == nil {
+			frontend.sendValueArr(GetCurrentPerPhase, "MPC", currentPerPhase)
+		}
+	case mpc.DataUpdateVoltagePerPhase:
+		if voltagePerPhase, err := h.ucmpc.VoltagePerPhase(entity); err == nil {
+			frontend.sendValueArr(GetVoltagePerPhase, "MPC", voltagePerPhase)
+		}
+	case mpc.DataUpdateFrequency:
+		if frequency, err := h.ucmpc.Frequency(entity); err == nil {
+			frontend.sendValue(GetFrequency, "MPC", frequency)
 		}
 	}
 }
