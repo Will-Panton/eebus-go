@@ -247,10 +247,12 @@ func (h *controlbox) run() {
 // EEBUSServiceHandler
 
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
+	log.Println("RemoteSKIConnected: " + ski)
 	h.isConnected = true
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
+	log.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected = false
 
 	frontend.sendNotification(ServiceListChanged)
@@ -336,12 +338,13 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
+		log.Println("--> LPC Event but not connected")
 		return
 	}
 
 	switch event {
 	case lpc.UseCaseSupportUpdate:
-		fmt.Println("--> LPC Event received: UseCaseSupportUpdate")
+		log.Println("--> LPC Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -458,12 +461,13 @@ func (h *controlbox) readProductionNominalMax(entity spineapi.EntityRemoteInterf
 
 func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
+		log.Println("--> LPP Event but not connected")
 		return
 	}
 
 	switch event {
 	case lpp.UseCaseSupportUpdate:
-		fmt.Println("--> LPP Event received: UseCaseSupportUpdate")
+		log.Println("--> LPP Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -534,12 +538,13 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
+		log.Println("--> MGCP Event but not connected")
 		return
 	}
 
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
-		fmt.Println("--> MGCP Event received: UseCaseSupportUpdate")
+		log.Println("--> MGCP Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -592,12 +597,13 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
+		log.Println("--> MCP Event but not connected")
 		return
 	}
 
 	switch event {
 	case mpc.UseCaseSupportUpdate:
-		fmt.Println("--> MPC Event received: UseCaseSupportUpdate")
+		log.Println("--> MPC Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })

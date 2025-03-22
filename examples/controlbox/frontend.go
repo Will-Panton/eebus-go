@@ -144,25 +144,31 @@ func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string
 }
 
 func sendData(h *controlbox) {
+	log.Println("sendData step 1")
 	frontend.sendText(QRCode, h.myService.QRCodeText())
 
+	log.Println("sendData step 2")
 	frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
 		IsActive: h.consumptionLimits.IsActive,
 		Duration: h.consumptionLimits.Duration / time.Second,
 		Value:    h.consumptionLimits.Value})
 
+	log.Println("sendData step 3")
 	frontend.sendValue(GetConsumptionFailsafeValue, "LPC", h.consumptionFailsafeLimits.Value)
 
 	frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
 
+	log.Println("sendData step 4")
 	frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
 		IsActive: h.productionLimits.IsActive,
 		Duration: h.productionLimits.Duration / time.Second,
 		Value:    h.productionLimits.Value})
 
+	log.Println("sendData step 5")
 	frontend.sendValue(GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
 
 	frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
+	log.Println("sendData step 6")
 }
 
 var upgrader = websocket.Upgrader{
