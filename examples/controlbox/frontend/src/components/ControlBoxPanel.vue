@@ -381,7 +381,7 @@
       };
 
       this.socket.onmessage = event => {
-        console.log( "Socket message: ", event.data );
+        //console.log( "Socket message: ", event.data );
         var message: Message = JSON.parse( event.data );
         switch ( message.Type ) {
           case MessageType.QRCode: {

@@ -173,8 +173,11 @@ func (h *controlbox) run() {
 	var err error
 	var certificate tls.Certificate
 
-	if len(os.Args) == 4 {
+	if len(os.Args) == 4 || len(os.Args) == 5 {
 		remoteSki = ""
+		if len(os.Args) == 5 {
+			remoteSki = os.Args[4]
+		}
 
 		certificate, err = tls.LoadX509KeyPair(os.Args[2], os.Args[3])
 		if err != nil {
@@ -240,6 +243,11 @@ func (h *controlbox) run() {
 	h.myService.AddUseCase(h.ucmpc)
 
 	h.remoteInfos = map[string]RemoteInfo{}
+
+	if remoteSki != "" {
+		h.remoteInfos[remoteSki] = RemoteInfo{}
+		h.myService.RegisterRemoteSKI(remoteSki)
+	}
 
 	h.myService.Start()
 }
