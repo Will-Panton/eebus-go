@@ -23,6 +23,8 @@
     <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
       <label class="device-select-label">{{ selectedSki }}</label>
+      <label class="device-select-label">Device Type:</label>
+      <label class="device-select-label">{{ deviceType }}</label>
     </div>
 
     <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
@@ -30,33 +32,31 @@
       <VueSelect v-model="selectedEntity" :options="optionEntities"
         v-bind:placeholder="optionEntities.length + (optionEntities.length == 1 ? ' entity' : ' entities')">
       </VueSelect>
-      <label class="device-select-label">Device Type:</label>
-      <label class="device-select-label">{{ deviceType }}</label>
       <label class="device-select-label">Features:</label>
       <VueSelect :options="optionFeatures"
         v-bind:placeholder="optionFeatures.length == 0 ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
       </VueSelect>
     </div>
     <div class="usecases">
-      <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPC']">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPC']">
         <h3>Consumption Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
-          <input type="checkbox" v-model="selectedDd['LPC'].IsActive"/>
+          <input type="checkbox" v-model="selectedLs['LPC'].IsActive"/>
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="selectedDd['LPC'].Value" />
+          <input type="number" v-model="selectedLs['LPC'].Value" />
           <button class="three-lines" type="button" @click="setConsumptionLimit">Set</button>
 
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="selectedDd['LPC'].Duration" />
+          <input type="number" v-model="selectedLs['LPC'].Duration" />
 
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="selectedDd['LPC'].FSValue" />
+          <input type="number" v-model="selectedLs['LPC'].FSValue" />
           <button type="button" @click="setConsumptionFailsafeLimit">Set</button>
 
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="selectedDd['LPC'].FSDuration" />
+          <input type="number" v-model="selectedLs['LPC'].FSDuration" />
           <button type="button" @click="setConsumptionFailsafeDuration">Set</button>
 
           <label>Nominal Maximum [W]:</label>
@@ -70,25 +70,25 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedDd && !!selectedDd['LPP']">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPP']">
         <h3>Production Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
-          <input type="checkbox" v-model="selectedDd['LPP'].IsActive"/>
+          <input type="checkbox" v-model="selectedLs['LPP'].IsActive"/>
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="selectedDd['LPP'].Value" />
+          <input type="number" v-model="selectedLs['LPP'].Value" />
           <button class="three-lines" type="button" @click="setProductionLimit">Set</button>
           
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="selectedDd['LPP'].Duration" />
+          <input type="number" v-model="selectedLs['LPP'].Duration" />
           
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="selectedDd['LPP'].FSValue" />
+          <input type="number" v-model="selectedLs['LPP'].FSValue" />
           <button type="button" @click="setProductionFailsafeLimit">Set</button>
           
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="selectedDd['LPP'].FSDuration" />
+          <input type="number" v-model="selectedLs['LPP'].FSDuration" />
           <button type="button" @click="setProductionFailsafeDuration">Set</button>
           
           <label>Nominal Maximum [W]:</label>
@@ -288,7 +288,7 @@
     public selectedSki = "";
     public selectedEntity: EntityInfo | undefined = undefined;
 
-    public get selectedDd() {
+    public get selectedLs() {
       return this.limits[this.selectedSki];
     }
 
@@ -329,8 +329,9 @@
     }
 
     public get deviceType() {
-      if ( "" < this.selectedSki && !! this.selectedEntity ) {
-        return this.selectedEntity.Type;
+      if ( "" < this.selectedSki ) {
+        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        return remoteService?.type ?? "";
       }
       else {
         return "";
