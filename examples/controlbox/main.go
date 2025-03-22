@@ -341,6 +341,7 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpc.UseCaseSupportUpdate:
+		fmt.Println("--> LPC Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -462,6 +463,7 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpp.UseCaseSupportUpdate:
+		fmt.Println("--> LPP Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -537,6 +539,7 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
+		fmt.Println("--> MGCP Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
@@ -594,6 +597,7 @@ func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case mpc.UseCaseSupportUpdate:
+		fmt.Println("--> MPC Event received: UseCaseSupportUpdate")
 		info, exists := h.remoteInfos[ski]
 		if !exists {
 			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })

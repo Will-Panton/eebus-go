@@ -26,12 +26,12 @@
     </div>
 
     <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
-      <label class="device-select-label">Device Type:</label>
-      <label class="device-select-label">{{ deviceType }}</label>
       <label class="device-select-label">Entities:</label>
       <VueSelect v-model="selectedEntity" :options="optionEntities"
         v-bind:placeholder="optionEntities.length + (optionEntities.length == 1 ? ' entity' : ' entities')">
       </VueSelect>
+      <label class="device-select-label">Device Type:</label>
+      <label class="device-select-label">{{ deviceType }}</label>
       <label class="device-select-label">Features:</label>
       <VueSelect :options="optionFeatures"
         v-bind:placeholder="optionFeatures.length == 0 ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
