@@ -143,32 +143,34 @@ func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string
 	}
 }
 
-func sendData(h *controlbox) {
-	log.Println("sendData step 1")
-	frontend.sendText(QRCode, h.myService.QRCodeText())
+func sendData(h *controlbox, uc string) {
+	switch uc {
+	case "":
+		frontend.sendText(QRCode, h.myService.QRCodeText())
 
-	log.Println("sendData step 2")
-	frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
-		IsActive: h.consumptionLimits.IsActive,
-		Duration: h.consumptionLimits.Duration / time.Second,
-		Value:    h.consumptionLimits.Value})
+	case "LPC":
+		frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+			IsActive: h.consumptionLimits.IsActive,
+			Duration: h.consumptionLimits.Duration / time.Second,
+			Value:    h.consumptionLimits.Value})
 
-	log.Println("sendData step 3")
-	frontend.sendValue(GetConsumptionFailsafeValue, "LPC", h.consumptionFailsafeLimits.Value)
+		frontend.sendValue(GetConsumptionFailsafeValue, "LPC", h.consumptionFailsafeLimits.Value)
 
-	frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
+		frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
 
-	log.Println("sendData step 4")
-	frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
-		IsActive: h.productionLimits.IsActive,
-		Duration: h.productionLimits.Duration / time.Second,
-		Value:    h.productionLimits.Value})
+	case "LPP":
+		frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+			IsActive: h.productionLimits.IsActive,
+			Duration: h.productionLimits.Duration / time.Second,
+			Value:    h.productionLimits.Value})
 
-	log.Println("sendData step 5")
-	frontend.sendValue(GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
+		frontend.sendValue(GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
 
-	frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
-	log.Println("sendData step 6")
+		frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
+
+	default:
+		return
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -206,7 +208,7 @@ func serveWs(h *controlbox, w http.ResponseWriter, r *http.Request) {
 
 	frontend.sendServiceList(GetServiceList, h.currentRemoteServices)
 
-	sendData(h)
+	sendData(h, "")
 
 	reader(h, ws)
 }
@@ -235,7 +237,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			if !exists {
 				log.Println("RegisterRemoteSKI: " + remoteSki)
 				h.myService.RegisterRemoteSKI(remoteSki)
-			} else {
+			} else if info.Device != nil && askEntities {
 				log.Println("Enumerate device entities of: " + remoteSki)
 				for _, entity := range info.Device.Entities() {
 					readData(h, entity, nil)
@@ -246,7 +248,7 @@ func reader(h *controlbox, ws *websocket.Conn) {
 				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 			}
 		case GetAllData:
-			sendData(h)
+			sendData(h, data.Text)
 		case SetConsumptionLimit:
 			var limit = data.Limit
 
@@ -305,6 +307,6 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			h.uclpc.StartHeartbeat()
 		}
 
-		frontend.sendNotification(Acknowledge)
+		frontend.sendNotification(Acknowledge, "")
 	}
 }

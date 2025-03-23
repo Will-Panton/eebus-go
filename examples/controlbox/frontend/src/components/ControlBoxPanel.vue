@@ -430,11 +430,15 @@
             break;
           }
           case MessageType.GetConsumptionHeartbeat: {
+            this.updateDeviceData( message.UseCase! );
+            this.sendNotification( MessageType.GetAllData, message.UseCase );
             this.consumptionHeartbeat = false;
             setTimeout( () => this.consumptionHeartbeat = true, 1 );
             break;
           }
           case MessageType.GetProductionHeartbeat: {
+            this.updateDeviceData( message.UseCase! );
+            this.sendNotification( MessageType.GetAllData, message.UseCase );
             this.productionHeartbeat = false;
             setTimeout( () => this.productionHeartbeat = true, 1 );
             break;

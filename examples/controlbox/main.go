@@ -32,6 +32,7 @@ import (
 )
 
 var remoteSki string
+var askEntities bool
 
 type WebsocketClient struct {
 	websocket *websocket.Conn
@@ -56,9 +57,10 @@ func (websocketClient *WebsocketClient) sendMessage(msg interface{}) error {
 	return err
 }
 
-func (websocketClient *WebsocketClient) sendNotification(messageType int) error {
+func (websocketClient *WebsocketClient) sendNotification(messageType int, uc string) error {
 	answer := Message{
-		Type: messageType}
+		Type:    messageType,
+		UseCase: uc}
 
 	return websocketClient.sendMessage(answer)
 }
@@ -107,6 +109,10 @@ func (websocketClient *WebsocketClient) sendServiceList(messageType int, service
 }
 
 func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteInfos map[string]RemoteInfo) error {
+	if !askEntities {
+		return nil
+	}
+
 	websocketClient.mutex2.Lock()
 
 	entityInfos := []EntityInfo{}
@@ -167,16 +173,23 @@ type controlbox struct {
 	productionNominalMax      float64
 
 	currentRemoteServices []shipapi.RemoteService
+
+	mutex sync.Mutex
 }
 
 func (h *controlbox) run() {
 	var err error
 	var certificate tls.Certificate
 
-	if len(os.Args) == 4 || len(os.Args) == 5 {
+	if len(os.Args) > 3 {
 		remoteSki = ""
-		if len(os.Args) == 5 {
+		askEntities = true
+		if len(os.Args) > 4 {
 			remoteSki = os.Args[4]
+		}
+
+		if len(os.Args) > 5 {
+			askEntities = os.Args[5] != "false"
 		}
 
 		certificate, err = tls.LoadX509KeyPair(os.Args[2], os.Args[3])
@@ -255,15 +268,15 @@ func (h *controlbox) run() {
 // EEBUSServiceHandler
 
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
-	log.Println("RemoteSKIConnected: " + ski)
+	fmt.Println("RemoteSKIConnected: " + ski)
 	h.isConnected = true
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
-	log.Println("RemoteSKIDisconnected: " + ski)
+	fmt.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected = false
 
-	frontend.sendNotification(ServiceListChanged)
+	frontend.sendNotification(ServiceListChanged, "")
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
@@ -274,7 +287,7 @@ func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, 
 		service.SetTrusted(true)
 	}
 
-	frontend.sendNotification(ServiceListChanged)
+	frontend.sendNotification(ServiceListChanged, "")
 }
 
 func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
@@ -289,12 +302,31 @@ func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.Conn
 		os.Exit(0)
 	}
 
-	frontend.sendNotification(ServiceListChanged)
+	frontend.sendNotification(ServiceListChanged, "")
 }
 
 func (h *controlbox) AllowWaitingForTrust(ski string) bool {
 	//return ski == remoteSki
 	return true
+}
+
+func (h *controlbox) updateEntityInfos(ski string, device spineapi.DeviceRemoteInterface, uc string) {
+	info, exists := h.remoteInfos[ski]
+	if !exists {
+		indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
+		h.remoteInfos[ski] = RemoteInfo{
+			Service:  h.currentRemoteServices[indx],
+			Device:   device,
+			UseCases: []string{uc},
+		}
+	} else {
+		info.Device = device
+		found := slices.Contains(info.UseCases, uc)
+		if !found {
+			info.UseCases = append(info.UseCases, uc)
+			h.remoteInfos[ski] = info
+		}
+	}
 }
 
 // LPC Event Handler
@@ -346,35 +378,26 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
-		log.Println("--> LPC Event but not connected")
+		fmt.Println("--> LPC Event but not connected")
 		return
 	}
 
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	switch event {
 	case lpc.UseCaseSupportUpdate:
-		log.Println("--> LPC Event received: UseCaseSupportUpdate")
-		info, exists := h.remoteInfos[ski]
-		if !exists {
-			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
-			h.remoteInfos[ski] = RemoteInfo{
-				Service:  h.currentRemoteServices[indx],
-				Device:   device,
-				UseCases: []string{"LPC"},
-			}
-		} else {
-			info.Device = device
-			found := slices.Contains(info.UseCases, "LPC")
-			if !found {
-				info.UseCases = append(info.UseCases, "LPC")
-				h.remoteInfos[ski] = info
-			}
-		}
+		fmt.Println("--> LPC Event received: UseCaseSupportUpdate")
+		h.updateEntityInfos(ski, device, "LPC")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPC"})
 
 	case lpc.DataUpdateLimit:
 		if currentLimit, err := h.uclpc.ConsumptionLimit(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPC")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpc.DataUpdateLimit", ski, currentLimit.Value)
 
 				h.consumptionLimits = currentLimit
@@ -393,6 +416,9 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpc.DataUpdateFailsafeConsumptionActivePowerLimit:
 		if limit, err := h.uclpc.FailsafeConsumptionActivePowerLimit(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPC")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpc.DataUpdateFailsafeConsumptionActivePowerLimit", ski, limit)
 
 				h.consumptionFailsafeLimits.Value = limit
@@ -403,6 +429,9 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpc.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpc.FailsafeDurationMinimum(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPC")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpc.DataUpdateFailsafeDurationMinimum", ski, duration)
 
 				h.consumptionFailsafeLimits.Duration = duration
@@ -412,8 +441,11 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 		}
 	case lpc.DataUpdateHeartbeat:
 		if ski == remoteSki {
+			h.updateEntityInfos(ski, device, "LPC")
+			frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 			h.readConsumptionNominalMax(entity)
-			frontend.sendNotification(GetConsumptionHeartbeat)
+			frontend.sendNotification(GetConsumptionHeartbeat, "LPC")
 		}
 	default:
 		return
@@ -469,35 +501,26 @@ func (h *controlbox) readProductionNominalMax(entity spineapi.EntityRemoteInterf
 
 func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
-		log.Println("--> LPP Event but not connected")
+		fmt.Println("--> LPP Event but not connected")
 		return
 	}
 
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	switch event {
 	case lpp.UseCaseSupportUpdate:
-		log.Println("--> LPP Event received: UseCaseSupportUpdate")
-		info, exists := h.remoteInfos[ski]
-		if !exists {
-			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
-			h.remoteInfos[ski] = RemoteInfo{
-				Service:  h.currentRemoteServices[indx],
-				Device:   device,
-				UseCases: []string{"LPP"},
-			}
-		} else {
-			info.Device = device
-			found := slices.Contains(info.UseCases, "LPP")
-			if !found {
-				info.UseCases = append(info.UseCases, "LPP")
-				h.remoteInfos[ski] = info
-			}
-		}
+		fmt.Println("--> LPP Event received: UseCaseSupportUpdate")
+		h.updateEntityInfos(ski, device, "LPP")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPP"})
 
 	case lpp.DataUpdateLimit:
 		if currentLimit, err := h.uclpp.ProductionLimit(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPP")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpp.DataUpdateLimit", ski, currentLimit.Value)
 
 				h.productionLimits = currentLimit
@@ -517,6 +540,9 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpp.DataUpdateFailsafeProductionActivePowerLimit:
 		if limit, err := h.uclpp.FailsafeProductionActivePowerLimit(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPP")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpp.DataUpdateFailsafeProductionActivePowerLimit", ski, limit)
 
 				h.productionFailsafeLimits.Value = limit
@@ -527,6 +553,9 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpp.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpp.FailsafeDurationMinimum(entity); err == nil {
 			if ski == remoteSki {
+				h.updateEntityInfos(ski, device, "LPP")
+				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 				fmt.Println("Event lpp.DataUpdateFailsafeDurationMinimum", ski, duration)
 
 				h.productionFailsafeLimits.Duration = duration
@@ -536,8 +565,11 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 		}
 	case lpp.DataUpdateHeartbeat:
 		if ski == remoteSki {
+			h.updateEntityInfos(ski, device, "LPP")
+			frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 			h.readProductionNominalMax(entity)
-			frontend.sendNotification(GetProductionHeartbeat)
+			frontend.sendNotification(GetProductionHeartbeat, "LPP")
 		}
 	default:
 		return
@@ -546,29 +578,17 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
-		log.Println("--> MGCP Event but not connected")
+		fmt.Println("--> MGCP Event but not connected")
 		return
 	}
 
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
-		log.Println("--> MGCP Event received: UseCaseSupportUpdate")
-		info, exists := h.remoteInfos[ski]
-		if !exists {
-			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
-			h.remoteInfos[ski] = RemoteInfo{
-				Service:  h.currentRemoteServices[indx],
-				Device:   device,
-				UseCases: []string{"MGCP"},
-			}
-		} else {
-			info.Device = device
-			found := slices.Contains(info.UseCases, "MGCP")
-			if !found {
-				info.UseCases = append(info.UseCases, "MGCP")
-				h.remoteInfos[ski] = info
-			}
-		}
+		fmt.Println("--> MGCP Event received: UseCaseSupportUpdate")
+		h.updateEntityInfos(ski, device, "MGCP")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MGCP"})
 
@@ -605,29 +625,17 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	if !h.isConnected {
-		log.Println("--> MCP Event but not connected")
+		fmt.Println("--> MCP Event but not connected")
 		return
 	}
 
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	switch event {
 	case mpc.UseCaseSupportUpdate:
-		log.Println("--> MPC Event received: UseCaseSupportUpdate")
-		info, exists := h.remoteInfos[ski]
-		if !exists {
-			indx := slices.IndexFunc(h.currentRemoteServices, func(v shipapi.RemoteService) bool { return v.Ski == ski })
-			h.remoteInfos[ski] = RemoteInfo{
-				Service:  h.currentRemoteServices[indx],
-				Device:   device,
-				UseCases: []string{"MPC"},
-			}
-		} else {
-			info.Device = device
-			found := slices.Contains(info.UseCases, "MPC")
-			if !found {
-				info.UseCases = append(info.UseCases, "MPC")
-				h.remoteInfos[ski] = info
-			}
-		}
+		fmt.Println("--> MPC Event received: UseCaseSupportUpdate")
+		h.updateEntityInfos(ski, device, "MPC")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MPC"})
 
