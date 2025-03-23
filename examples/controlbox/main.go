@@ -109,39 +109,36 @@ func (websocketClient *WebsocketClient) sendServiceList(messageType int, service
 }
 
 func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteInfos map[string]RemoteInfo) error {
-	if !askEntities {
-		return nil
-	}
-
 	websocketClient.mutex2.Lock()
+	defer websocketClient.mutex2.Unlock()
 
 	entityInfos := []EntityInfo{}
 
 	for _, remoteInfo := range remoteInfos {
 		device := remoteInfo.Device
-		for _, entity := range device.Entities() {
-			features := []string{}
+		if device != nil && askEntities {
+			for _, entity := range device.Entities() {
+				features := []string{}
 
-			for _, f := range entity.Features() {
-				features = append(features, f.String()+", "+string(f.Role()))
+				for _, f := range entity.Features() {
+					features = append(features, f.String()+", "+string(f.Role()))
+				}
+
+				info := EntityInfo{
+					Name:     string(entity.EntityType()),
+					SKI:      device.Ski(),
+					Type:     string(*device.DeviceType()),
+					Features: features,
+					UseCases: remoteInfo.UseCases}
+
+				entityInfos = append(entityInfos, info)
 			}
-
-			info := EntityInfo{
-				Name:     string(entity.EntityType()),
-				SKI:      device.Ski(),
-				Type:     string(*device.DeviceType()),
-				Features: features,
-				UseCases: remoteInfo.UseCases}
-
-			entityInfos = append(entityInfos, info)
 		}
 	}
 
 	answer := Message{
 		Type:        messageType,
 		EntityInfos: entityInfos}
-
-	defer websocketClient.mutex2.Unlock()
 
 	return websocketClient.sendMessage(answer)
 }
@@ -280,11 +277,14 @@ func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski str
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
+	fmt.Println("VisibleRemoteServicesUpdated")
 	h.currentRemoteServices = entries
 
 	for _, element := range h.currentRemoteServices {
-		service := h.myService.RemoteServiceForSKI(element.Ski)
-		service.SetTrusted(true)
+		fmt.Println("VisibleRemoteServicesUpdated: " + element.Ski)
+		remoteService := h.myService.RemoteServiceForSKI(element.Ski)
+		remoteService.SetTrusted(true)
+		remoteService.SetAutoAccept(true)
 	}
 
 	frontend.sendNotification(ServiceListChanged, "")
@@ -294,6 +294,7 @@ func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
 }
 
 func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.ConnectionStateDetail) {
+	fmt.Println("ServicePairingDetailUpdate: " + ski + ", detail: " + strconv.FormatUint(uint64(detail.State()), 10))
 	if ski == remoteSki && detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
 		fmt.Println("The remote service denied trust. Exiting.")
 		h.myService.CancelPairingWithSKI(ski)
@@ -377,6 +378,7 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 }
 
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	fmt.Println("--> LPC Event: " + event)
 	if !h.isConnected {
 		fmt.Println("--> LPC Event but not connected")
 		return
@@ -500,6 +502,7 @@ func (h *controlbox) readProductionNominalMax(entity spineapi.EntityRemoteInterf
 }
 
 func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	fmt.Println("--> LPP Event: " + event)
 	if !h.isConnected {
 		fmt.Println("--> LPP Event but not connected")
 		return
@@ -577,6 +580,7 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 }
 
 func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	fmt.Println("--> MGCP Event: " + event)
 	if !h.isConnected {
 		fmt.Println("--> MGCP Event but not connected")
 		return
@@ -624,6 +628,7 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 }
 
 func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	fmt.Println("--> MCP Event: " + event)
 	if !h.isConnected {
 		fmt.Println("--> MCP Event but not connected")
 		return
