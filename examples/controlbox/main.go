@@ -280,12 +280,12 @@ func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, 
 	fmt.Println("VisibleRemoteServicesUpdated")
 	h.currentRemoteServices = entries
 
-	for _, element := range h.currentRemoteServices {
-		fmt.Println("VisibleRemoteServicesUpdated: " + element.Ski)
-		remoteService := h.myService.RemoteServiceForSKI(element.Ski)
-		remoteService.SetTrusted(true)
-		remoteService.SetAutoAccept(true)
-	}
+	// for _, element := range h.currentRemoteServices {
+	// 	fmt.Println("VisibleRemoteServicesUpdated: " + element.Ski)
+	// 	remoteService := h.myService.RemoteServiceForSKI(element.Ski)
+	// 	remoteService.SetTrusted(true)
+	// 	remoteService.SetAutoAccept(true)
+	// }
 
 	frontend.sendNotification(ServiceListChanged, "")
 }
@@ -294,7 +294,17 @@ func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
 }
 
 func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.ConnectionStateDetail) {
-	fmt.Println("ServicePairingDetailUpdate: " + ski + ", detail: " + strconv.FormatUint(uint64(detail.State()), 10))
+	states := []string{"ConnectionStateNone", "ConnectionStateQueued", "ConnectionStateInitiated",
+		"ConnectionStateReceivedPairingRequest", "ConnectionStateInProgress", "ConnectionStateTrusted",
+		"ConnectionStatePin", "ConnectionStateCompleted", "ConnectionStateRemoteDeniedTrust", "ConnectionStateError",
+	}
+
+	if detail.Error() == nil {
+		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()])
+	} else {
+		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()] + ", " + detail.Error().Error())
+	}
+
 	if ski == remoteSki && detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
 		fmt.Println("The remote service denied trust. Exiting.")
 		h.myService.CancelPairingWithSKI(ski)
@@ -308,6 +318,7 @@ func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.Conn
 
 func (h *controlbox) AllowWaitingForTrust(ski string) bool {
 	//return ski == remoteSki
+	fmt.Println("AllowWaitingForTrust: " + ski)
 	return true
 }
 
