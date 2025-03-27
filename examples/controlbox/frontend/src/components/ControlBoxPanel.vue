@@ -23,8 +23,14 @@
     <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
       <label class="device-select-label">{{ selectedSki }}</label>
+      <label class="device-select-label">Device Brand:</label>
+      <label class="device-select-label">{{ deviceBrand }}</label>
       <label class="device-select-label">Device Type:</label>
       <label class="device-select-label">{{ deviceType }}</label>
+      <label class="device-select-label">Device Model:</label>
+      <label class="device-select-label">{{ deviceModel }}</label>
+      <label class="device-select-label">Serial Number:</label>
+      <label class="device-select-label">{{ deviceSerial }}</label>
     </div>
 
     <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
@@ -328,10 +334,40 @@
       return options;
     }
 
+    public get deviceBrand() {
+      if ( "" < this.selectedSki ) {
+        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        return remoteService?.brand ?? "";
+      }
+      else {
+        return "";
+      }
+    }
+
     public get deviceType() {
       if ( "" < this.selectedSki ) {
         var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
         return remoteService?.type ?? "";
+      }
+      else {
+        return "";
+      }
+    }
+
+    public get deviceModel() {
+      if ( "" < this.selectedSki ) {
+        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        return remoteService?.model ?? "";
+      }
+      else {
+        return "";
+      }
+    }
+
+    public get deviceSerial() {
+      if ( "" < this.selectedSki ) {
+        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        return remoteService?.serial ?? "";
       }
       else {
         return "";
