@@ -31,8 +31,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var remoteSki string
-var askEntities bool
+var remoteSki string = ""
 
 type WebsocketClient struct {
 	websocket *websocket.Conn
@@ -116,7 +115,7 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 
 	for _, remoteInfo := range remoteInfos {
 		device := remoteInfo.Device
-		if device != nil && askEntities {
+		if device != nil {
 			for _, entity := range device.Entities() {
 				features := []string{}
 
@@ -178,17 +177,7 @@ func (h *controlbox) run() {
 	var err error
 	var certificate tls.Certificate
 
-	if len(os.Args) > 3 {
-		remoteSki = ""
-		askEntities = true
-		if len(os.Args) > 4 {
-			remoteSki = os.Args[4]
-		}
-
-		if len(os.Args) > 5 {
-			askEntities = os.Args[5] != "false"
-		}
-
+	if len(os.Args) == 4 {
 		certificate, err = tls.LoadX509KeyPair(os.Args[2], os.Args[3])
 		if err != nil {
 			usage()
@@ -220,8 +209,14 @@ func (h *controlbox) run() {
 		log.Fatal(err)
 	}
 
+	vendorCode := "Demo"
+	deviceBrand := "Demo"
+	deviceModel := "ControlBox"
+	serialNumber := "123456789"
+	altIdentifier := "ControlBox Simulator SN-" + serialNumber
+
 	configuration, err := api.NewConfiguration(
-		"Demo", "Demo", "ControlBox", "123456789",
+		vendorCode, deviceBrand, deviceModel, serialNumber,
 		[]shipapi.DeviceCategoryType{shipapi.DeviceCategoryTypeGridConnectionHub},
 		model.DeviceTypeTypeElectricitySupplySystem,
 		[]model.EntityTypeType{model.EntityTypeTypeGridGuard},
@@ -229,7 +224,7 @@ func (h *controlbox) run() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	configuration.SetAlternateIdentifier("ControlBox Simulator SN-123456789")
+	configuration.SetAlternateIdentifier(altIdentifier)
 
 	h.myService = service.NewService(configuration, h)
 	h.myService.SetLogging(h)
@@ -254,38 +249,24 @@ func (h *controlbox) run() {
 
 	h.remoteInfos = map[string]RemoteInfo{}
 
-	if remoteSki != "" {
-		h.remoteInfos[remoteSki] = RemoteInfo{}
-		h.myService.RegisterRemoteSKI(remoteSki)
-	}
-
 	h.myService.Start()
 }
 
 // EEBUSServiceHandler
 
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
-	fmt.Println("RemoteSKIConnected: " + ski)
 	h.isConnected = true
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
-	fmt.Println("RemoteSKIDisconnected: " + ski)
+	// fmt.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected = false
 
 	frontend.sendNotification(ServiceListChanged, "")
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
-	fmt.Println("VisibleRemoteServicesUpdated")
 	h.currentRemoteServices = entries
-
-	// for _, element := range h.currentRemoteServices {
-	// 	fmt.Println("VisibleRemoteServicesUpdated: " + element.Ski)
-	// 	remoteService := h.myService.RemoteServiceForSKI(element.Ski)
-	// 	remoteService.SetTrusted(true)
-	// 	remoteService.SetAutoAccept(true)
-	// }
 
 	frontend.sendNotification(ServiceListChanged, "")
 }
@@ -294,16 +275,16 @@ func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
 }
 
 func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.ConnectionStateDetail) {
-	states := []string{"ConnectionStateNone", "ConnectionStateQueued", "ConnectionStateInitiated",
-		"ConnectionStateReceivedPairingRequest", "ConnectionStateInProgress", "ConnectionStateTrusted",
-		"ConnectionStatePin", "ConnectionStateCompleted", "ConnectionStateRemoteDeniedTrust", "ConnectionStateError",
-	}
+	// states := []string{"ConnectionStateNone", "ConnectionStateQueued", "ConnectionStateInitiated",
+	// 	"ConnectionStateReceivedPairingRequest", "ConnectionStateInProgress", "ConnectionStateTrusted",
+	// 	"ConnectionStatePin", "ConnectionStateCompleted", "ConnectionStateRemoteDeniedTrust", "ConnectionStateError",
+	// }
 
-	if detail.Error() == nil {
-		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()])
-	} else {
-		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()] + ", " + detail.Error().Error())
-	}
+	// if detail.Error() == nil {
+	// 	fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()])
+	// } else {
+	// 	fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()] + ", " + detail.Error().Error())
+	// }
 
 	if ski == remoteSki && detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
 		fmt.Println("The remote service denied trust. Exiting.")
@@ -391,7 +372,7 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
 	fmt.Println("--> LPC Event: " + event)
 	if !h.isConnected {
-		fmt.Println("--> LPC Event but not connected")
+		fmt.Println("--> LPC Event, but not connected")
 		return
 	}
 
@@ -400,7 +381,6 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpc.UseCaseSupportUpdate:
-		fmt.Println("--> LPC Event received: UseCaseSupportUpdate")
 		h.updateEntityInfos(ski, device, "LPC")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPC"})
@@ -524,7 +504,6 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case lpp.UseCaseSupportUpdate:
-		fmt.Println("--> LPP Event received: UseCaseSupportUpdate")
 		h.updateEntityInfos(ski, device, "LPP")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPP"})
@@ -602,7 +581,6 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
-		fmt.Println("--> MGCP Event received: UseCaseSupportUpdate")
 		h.updateEntityInfos(ski, device, "MGCP")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MGCP"})
@@ -650,7 +628,6 @@ func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	switch event {
 	case mpc.UseCaseSupportUpdate:
-		fmt.Println("--> MPC Event received: UseCaseSupportUpdate")
 		h.updateEntityInfos(ski, device, "MPC")
 		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MPC"})
