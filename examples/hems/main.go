@@ -225,7 +225,8 @@ func (h *hems) run() {
 		}
 	}()
 
-	h.myService.RegisterRemoteSKI(remoteSki)
+	//h.myService.RegisterRemoteSKI(remoteSki)
+	h.myService.UserIsAbleToApproveOrCancelPairingRequests(true)
 
 	h.myService.Start()
 	// defer h.myService.Shutdown()
@@ -365,7 +366,7 @@ func (h *hems) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 // EEBUSServiceHandler
 
 func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
-	fmt.Println("RemoteSKIConnected", ski)
+	fmt.Println("RemoteSKIConnected: ", ski)
 
 	time.AfterFunc(1*time.Second, func() {
 		_ = h.ucgcpmgcp.SetPowerLimitationFactor(h.gridPowerLimitFactor)
@@ -373,11 +374,15 @@ func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 }
 
 func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
-	fmt.Println("RemoteSKIDisconnected", ski)
+	fmt.Println("RemoteSKIDisconnected: " + ski)
 }
 
 func (h *hems) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
+	fmt.Print("VisibleRemoteServicesUpdated, count: ")
+	fmt.Println(len(entries))
+
 	for _, element := range entries {
+		fmt.Println("Remote SKI: " + element.Ski)
 		service := h.myService.RemoteServiceForSKI(element.Ski)
 		service.SetTrusted(true)
 	}
@@ -386,7 +391,18 @@ func (h *hems) VisibleRemoteServicesUpdated(service api.ServiceInterface, entrie
 func (h *hems) ServiceShipIDUpdate(ski string, shipdID string) {}
 
 func (h *hems) ServicePairingDetailUpdate(ski string, detail *shipapi.ConnectionStateDetail) {
-	if ski == remoteSki && detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
+	states := []string{"ConnectionStateNone", "ConnectionStateQueued", "ConnectionStateInitiated",
+		"ConnectionStateReceivedPairingRequest", "ConnectionStateInProgress", "ConnectionStateTrusted",
+		"ConnectionStatePin", "ConnectionStateCompleted", "ConnectionStateRemoteDeniedTrust", "ConnectionStateError",
+	}
+
+	if detail.Error() == nil {
+		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()])
+	} else {
+		fmt.Println("ServicePairingDetailUpdate: " + ski + ", " + states[detail.State()] + ", " + detail.Error().Error())
+	}
+
+	if detail.State() == shipapi.ConnectionStateRemoteDeniedTrust {
 		fmt.Println("The remote service denied trust. Exiting.")
 		h.myService.CancelPairingWithSKI(ski)
 		h.myService.UnregisterRemoteSKI(ski)

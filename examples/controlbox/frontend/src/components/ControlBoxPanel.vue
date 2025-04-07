@@ -40,11 +40,15 @@
       </VueSelect>
       <label class="device-select-label">Features:</label>
       <VueSelect :options="optionFeatures"
-        v-bind:placeholder="optionFeatures.length == 0 ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
+        v-bind:placeholder="! selectedEntity ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
+      </VueSelect>
+      <label class="device-select-label">Usecases:</label>
+      <VueSelect :options="optionUsecases"
+        v-bind:placeholder="! selectedEntity ? '' : (optionUsecases.length + (optionUsecases.length == 1 ? ' usecase' : ' usecases'))">
       </VueSelect>
     </div>
     <div class="usecases">
-      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPC']">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPC'] && existsUC('LPC')">
         <h3>Consumption Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
@@ -76,7 +80,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPP']">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPP'] && existsUC('LPP')">
         <h3>Production Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
@@ -108,7 +112,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MGCP']">
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MGCP'] && existsUC('MGCP')">
         <h3>Monitoring Grid Connection Point</h3>
         <div class="form-line2">
           <label>Power Limitation Factor:</label>
@@ -140,7 +144,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MPC']">
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MPC'] && existsUC('MPC')">
         <h3>Monitoring Power Consumption</h3>
         <div class="form-line2">
           <label>Power:</label>
@@ -294,6 +298,12 @@
     public selectedSki = "";
     public selectedEntity: EntityInfo | undefined = undefined;
 
+    public existsUC( uc: string ): boolean {
+      var exists = false;
+      this.selectedEntities.forEach(item => exists ||= item.UseCases.includes(uc));
+      return exists;
+    }
+
     public get selectedLs() {
       return this.limits[this.selectedSki];
     }
@@ -379,6 +389,19 @@
 
       if ( "" < this.selectedSki && !! this.selectedEntity ) {
         this.selectedEntity.Features.forEach(item => { options.push({
+            label: item,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
+
+    public get optionUsecases() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.selectedEntity ) {
+        this.selectedEntity.UseCases.forEach(item => { options.push({
             label: item,
             value: item
           });        

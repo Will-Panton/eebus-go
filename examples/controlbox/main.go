@@ -45,13 +45,12 @@ func (websocketClient *WebsocketClient) sendMessage(msg interface{}) error {
 	}
 
 	websocketClient.mutex.Lock()
+	defer websocketClient.mutex.Unlock()
 
 	err := websocketClient.websocket.WriteJSON(msg)
 	if err != nil {
 		log.Println(err)
 	}
-
-	defer websocketClient.mutex.Unlock()
 
 	return err
 }
@@ -128,7 +127,7 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 					SKI:      device.Ski(),
 					Type:     string(*device.DeviceType()),
 					Features: features,
-					UseCases: remoteInfo.UseCases}
+					UseCases: websocketClient.getRemoteUsecases(entity)}
 
 				entityInfos = append(entityInfos, info)
 			}
@@ -140,6 +139,50 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 		EntityInfos: entityInfos}
 
 	return websocketClient.sendMessage(answer)
+}
+
+func (websocketClient *WebsocketClient) getRemoteUsecases(entity spineapi.EntityRemoteInterface) []string {
+	remoteUsecases := []string{}
+
+	feature := entity.FeatureOfTypeAndRole(model.FeatureTypeTypeLoadControl, model.RoleTypeServer)
+	if feature != nil {
+		d := feature.DataCopy(model.FunctionTypeLoadControlLimitDescriptionListData)
+		if d != nil {
+			l, ok := d.(*model.LoadControlLimitDescriptionListDataType)
+			if ok && l != nil {
+				for _, limitDescription := range l.LoadControlLimitDescriptionData {
+					if limitDescription.LimitDirection != nil {
+						if *limitDescription.LimitDirection == model.EnergyDirectionTypeConsume {
+							remoteUsecases = append(remoteUsecases, "LPC")
+						} else if *limitDescription.LimitDirection == model.EnergyDirectionTypeProduce {
+							remoteUsecases = append(remoteUsecases, "LPP")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	feature = entity.FeatureOfTypeAndRole(model.FeatureTypeTypeMeasurement, model.RoleTypeServer)
+	if feature != nil {
+		d := feature.DataCopy(model.FunctionTypeMeasurementDescriptionListData)
+		if d != nil {
+			m, ok := d.(*model.MeasurementDescriptionListDataType)
+			if ok && m != nil {
+				for _, measureDescription := range m.MeasurementDescriptionData {
+					if measureDescription.ScopeType != nil {
+						if *measureDescription.ScopeType == model.ScopeTypeTypeACEnergyConsumed {
+							remoteUsecases = append(remoteUsecases, "MPC")
+						} else if *measureDescription.ScopeType == model.ScopeTypeTypeGridConsumption {
+							remoteUsecases = append(remoteUsecases, "MGCP")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return remoteUsecases
 }
 
 var frontend WebsocketClient
@@ -255,17 +298,27 @@ func (h *controlbox) run() {
 // EEBUSServiceHandler
 
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
+	fmt.Println("RemoteSKIConnected: " + ski)
 	h.isConnected = true
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
-	// fmt.Println("RemoteSKIDisconnected: " + ski)
+	fmt.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected = false
 
 	frontend.sendNotification(ServiceListChanged, "")
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
+	fmt.Print("VisibleRemoteServicesUpdated, count: ")
+	fmt.Println(len(entries))
+
+	for _, element := range entries {
+		fmt.Println("Remote SKI: " + element.Ski)
+		service := h.myService.RemoteServiceForSKI(element.Ski)
+		service.SetTrusted(true)
+	}
+
 	h.currentRemoteServices = entries
 
 	frontend.sendNotification(ServiceListChanged, "")
