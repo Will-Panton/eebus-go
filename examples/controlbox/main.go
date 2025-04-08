@@ -298,8 +298,11 @@ func (h *controlbox) run() {
 // EEBUSServiceHandler
 
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
+	remoteSki = ski
 	fmt.Println("RemoteSKIConnected: " + ski)
 	h.isConnected = true
+
+	frontend.sendText(SelectService, ski)
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
@@ -432,18 +435,16 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.updateEntityInfos(ski, device, "LPC")
+	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 	switch event {
 	case lpc.UseCaseSupportUpdate:
-		h.updateEntityInfos(ski, device, "LPC")
-		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPC"})
 
 	case lpc.DataUpdateLimit:
 		if currentLimit, err := h.uclpc.ConsumptionLimit(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPC")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpc.DataUpdateLimit", ski, currentLimit.Value)
 
 				h.consumptionLimits = currentLimit
@@ -462,9 +463,6 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpc.DataUpdateFailsafeConsumptionActivePowerLimit:
 		if limit, err := h.uclpc.FailsafeConsumptionActivePowerLimit(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPC")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpc.DataUpdateFailsafeConsumptionActivePowerLimit", ski, limit)
 
 				h.consumptionFailsafeLimits.Value = limit
@@ -475,9 +473,6 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpc.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpc.FailsafeDurationMinimum(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPC")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpc.DataUpdateFailsafeDurationMinimum", ski, duration)
 
 				h.consumptionFailsafeLimits.Duration = duration
@@ -487,9 +482,6 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 		}
 	case lpc.DataUpdateHeartbeat:
 		if ski == remoteSki {
-			h.updateEntityInfos(ski, device, "LPC")
-			frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 			h.readConsumptionNominalMax(entity)
 			frontend.sendNotification(GetConsumptionHeartbeat, "LPC")
 		}
@@ -555,18 +547,16 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.updateEntityInfos(ski, device, "LPP")
+	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 	switch event {
 	case lpp.UseCaseSupportUpdate:
-		h.updateEntityInfos(ski, device, "LPP")
-		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"LPP"})
 
 	case lpp.DataUpdateLimit:
 		if currentLimit, err := h.uclpp.ProductionLimit(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPP")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpp.DataUpdateLimit", ski, currentLimit.Value)
 
 				h.productionLimits = currentLimit
@@ -586,9 +576,6 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpp.DataUpdateFailsafeProductionActivePowerLimit:
 		if limit, err := h.uclpp.FailsafeProductionActivePowerLimit(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPP")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpp.DataUpdateFailsafeProductionActivePowerLimit", ski, limit)
 
 				h.productionFailsafeLimits.Value = limit
@@ -599,9 +586,6 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	case lpp.DataUpdateFailsafeDurationMinimum:
 		if duration, err := h.uclpp.FailsafeDurationMinimum(entity); err == nil {
 			if ski == remoteSki {
-				h.updateEntityInfos(ski, device, "LPP")
-				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 				fmt.Println("Event lpp.DataUpdateFailsafeDurationMinimum", ski, duration)
 
 				h.productionFailsafeLimits.Duration = duration
@@ -611,9 +595,6 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 		}
 	case lpp.DataUpdateHeartbeat:
 		if ski == remoteSki {
-			h.updateEntityInfos(ski, device, "LPP")
-			frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
-
 			h.readProductionNominalMax(entity)
 			frontend.sendNotification(GetProductionHeartbeat, "LPP")
 		}
@@ -632,10 +613,11 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.updateEntityInfos(ski, device, "MGCP")
+	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
-		h.updateEntityInfos(ski, device, "MGCP")
-		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MGCP"})
 
 	case mgcp.DataUpdatePowerLimitationFactor:
@@ -679,10 +661,11 @@ func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterfac
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.updateEntityInfos(ski, device, "MPC")
+	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+
 	switch event {
 	case mpc.UseCaseSupportUpdate:
-		h.updateEntityInfos(ski, device, "MPC")
-		frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 		readData(h, entity, []string{"MPC"})
 
 	case mpc.DataUpdatePower:

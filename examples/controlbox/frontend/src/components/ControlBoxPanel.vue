@@ -52,21 +52,21 @@
         <h3>Consumption Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
-          <input type="checkbox" v-model="selectedLs['LPC'].IsActive"/>
+          <input type="checkbox" v-model="selectedLs['LPC'].IsActive" @input="onLPCUserChanged" />
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="selectedLs['LPC'].Value" />
+          <input type="number" v-model="selectedLs['LPC'].Value" @input="onLPCUserChanged" />
           <button class="three-lines" type="button" @click="setConsumptionLimit">Set</button>
 
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="selectedLs['LPC'].Duration" />
+          <input type="number" v-model="selectedLs['LPC'].Duration" @input="onLPCUserChanged" />
 
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="selectedLs['LPC'].FSValue" />
+          <input type="number" v-model="selectedLs['LPC'].FSValue" @input="onLPCUserChanged" />
           <button type="button" @click="setConsumptionFailsafeLimit">Set</button>
 
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="selectedLs['LPC'].FSDuration" />
+          <input type="number" v-model="selectedLs['LPC'].FSDuration" @input="onLPCUserChanged" />
           <button type="button" @click="setConsumptionFailsafeDuration">Set</button>
 
           <label>Nominal Maximum [W]:</label>
@@ -84,21 +84,21 @@
         <h3>Production Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
-          <input type="checkbox" v-model="selectedLs['LPP'].IsActive"/>
+          <input type="checkbox" v-model="selectedLs['LPP'].IsActive" @input="onLPPUserChanged" />
 
           <label>Dimmed Value [W]:</label>
-          <input type="number" v-model="selectedLs['LPP'].Value" />
+          <input type="number" v-model="selectedLs['LPP'].Value" @input="onLPPUserChanged" />
           <button class="three-lines" type="button" @click="setProductionLimit">Set</button>
           
           <label>Dimmed Duration [s]:</label>
-          <input type="number" v-model="selectedLs['LPP'].Duration" />
+          <input type="number" v-model="selectedLs['LPP'].Duration" @input="onLPPUserChanged" />
           
           <label>Failsafe Value [W]:</label>
-          <input type="number" v-model="selectedLs['LPP'].FSValue" />
+          <input type="number" v-model="selectedLs['LPP'].FSValue" @input="onLPPUserChanged" />
           <button type="button" @click="setProductionFailsafeLimit">Set</button>
           
           <label>Failsafe Duration [s]:</label>
-          <input type="number" v-model="selectedLs['LPP'].FSDuration" />
+          <input type="number" v-model="selectedLs['LPP'].FSDuration" @input="onLPPUserChanged" />
           <button type="button" @click="setProductionFailsafeDuration">Set</button>
           
           <label>Nominal Maximum [W]:</label>
@@ -298,6 +298,9 @@
     public selectedSki = "";
     public selectedEntity: EntityInfo | undefined = undefined;
 
+    private lpcUserChanged = false;
+    private lppUserChanged = false;
+
     public existsUC( uc: string ): boolean {
       var exists = false;
       this.selectedEntities.forEach(item => exists ||= item.UseCases.includes(uc));
@@ -452,6 +455,10 @@
             this.sendNotification( MessageType.GetServiceList );
             break;
           }
+          case MessageType.SelectService: {
+            this.selectedSki = message.Text ?? "";
+            break;
+          }
           case MessageType.GetServiceList: {
             this.remoteServices = message.ServiceList!;
             break;
@@ -460,24 +467,50 @@
             this.remoteEntities = message.EntityInfos;
             break;
           }
-          case MessageType.GetConsumptionLimit:
+          case MessageType.GetConsumptionLimit: {
+            if ( ! this.lpcUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+              this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+              this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+            }
+            break;
+          }
           case MessageType.GetProductionLimit: {
-            this.updateDeviceData( message.UseCase! );
-            this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-            this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-            this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+            if ( ! this.lppUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+              this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+              this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+            }
             break;
           }
-          case MessageType.GetConsumptionFailsafeValue:
+          case MessageType.GetConsumptionFailsafeValue: {
+            if ( ! this.lpcUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+            }
+            break;
+          }
           case MessageType.GetProductionFailsafeValue: {
-            this.updateDeviceData( message.UseCase! );
-            this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+            if ( ! this.lppUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+            }
             break;
           }
-          case MessageType.GetConsumptionFailsafeDuration:
+          case MessageType.GetConsumptionFailsafeDuration: {
+            if ( ! this.lpcUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+            }
+            break;
+          }
           case MessageType.GetProductionFailsafeDuration: {
-            this.updateDeviceData( message.UseCase! );
-            this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+            if ( ! this.lppUserChanged ) {
+              this.updateDeviceData( message.UseCase! );
+              this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+            }
             break;
           }
           case MessageType.GetConsumptionNominalMax: {
@@ -602,11 +635,20 @@
       this.socket!.send( JSON.stringify( command ) );
     }
 
+    public onLPCUserChanged() {
+      this.lpcUserChanged = true;
+    }
+
+    public onLPPUserChanged() {
+      this.lppUserChanged = true;
+    }
+
     public setConsumptionLimit() {
       if ( ! this.socket )
         return;
       
       this.sendLimits( MessageType.SetConsumptionLimit, this.limits[this.selectedSki]['LPC'] );
+      this.lpcUserChanged = false;
     }
 
     public setProductionLimit() {
@@ -614,6 +656,7 @@
         return;
       
       this.sendLimits( MessageType.SetProductionLimit, this.limits[this.selectedSki]['LPP'] );
+      this.lppUserChanged = false;
     }
 
     public setConsumptionFailsafeLimit() {
@@ -621,6 +664,7 @@
         return;
       
       this.sendValue( MessageType.SetConsumptionFailsafeValue, this.limits[this.selectedSki]['LPC'].FSValue );
+      this.lpcUserChanged = false;
     }
 
     public setConsumptionFailsafeDuration() {
@@ -628,6 +672,7 @@
         return;
       
       this.sendValue( MessageType.SetConsumptionFailsafeDuration, this.limits[this.selectedSki]['LPC'].FSDuration );
+      this.lpcUserChanged = false;
     }
 
     public setProductionFailsafeLimit() {
@@ -635,6 +680,7 @@
         return;
       
       this.sendValue( MessageType.SetProductionFailsafeValue, this.limits[this.selectedSki]['LPP'].FSValue );
+      this.lppUserChanged = false;
     }
 
     public setProductionFailsafeDuration() {
@@ -642,6 +688,7 @@
         return;
       
       this.sendValue( MessageType.SetProductionFailsafeDuration, this.limits[this.selectedSki]['LPP'].FSDuration );
+      this.lppUserChanged = false;
     }
 
     public toggleConsumptionHeartbeat() {

@@ -235,7 +235,9 @@ func reader(h *controlbox, ws *websocket.Conn) {
 
 			info, exists := h.remoteInfos[remoteSki]
 			if !exists {
-				h.myService.RegisterRemoteSKI(remoteSki)
+				if !h.isConnected {
+					h.myService.RegisterRemoteSKI(remoteSki)
+				}
 			} else if info.Device != nil {
 				for _, entity := range info.Device.Entities() {
 					readData(h, entity, nil)
