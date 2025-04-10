@@ -65,6 +65,7 @@ type RemoteInfo struct {
 }
 
 type EntityInfo struct {
+	Address  string
 	Name     string
 	SKI      string
 	Type     string

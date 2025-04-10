@@ -123,6 +123,7 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 				}
 
 				info := EntityInfo{
+					Address:  entity.Address().String(),
 					Name:     string(entity.EntityType()),
 					SKI:      device.Ski(),
 					Type:     string(*device.DeviceType()),
@@ -287,7 +288,7 @@ func (h *controlbox) run() {
 	h.ucmgcp = mgcp.NewMGCP(localEntity, h.OnMGCPEvent)
 	h.myService.AddUseCase(h.ucmgcp)
 
-	h.ucmpc = mpc.NewMPC(localEntity, h.OnMCPEvent)
+	h.ucmpc = mpc.NewMPC(localEntity, h.OnMPCEvent)
 	h.myService.AddUseCase(h.ucmpc)
 
 	h.remoteInfos = map[string]RemoteInfo{}
@@ -651,10 +652,10 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 	}
 }
 
-func (h *controlbox) OnMCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	fmt.Println("--> MCP Event: " + event)
+func (h *controlbox) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+	fmt.Println("--> MPC Event: " + event)
 	if !h.isConnected {
-		fmt.Println("--> MCP Event but not connected")
+		fmt.Println("--> MPC Event but not connected")
 		return
 	}
 

@@ -258,6 +258,7 @@
   }
 
   interface EntityInfo {
+    Address:  string,
     Name:     string,
     SKI:      string,
     Type:     string,
@@ -601,15 +602,15 @@
       }
 
       [...this.remoteEntities].forEach( re => {
-        var indx = entities.findIndex( e => e.Name == re.Name );
+        var indx = entities.findIndex( e => e.Address == re.Address );
         if ( -1 == indx ) {
-          var indx2 = this.remoteEntities!.findIndex( e => e.Name == re.Name );
+          var indx2 = this.remoteEntities!.findIndex( e => e.Address == re.Address );
           this.remoteEntities = this.remoteEntities.splice( indx2, 1 );
         }
       } )
 
       entities.forEach( e => {
-        var indx = this.remoteEntities.findIndex( re => re.Name == e.Name );
+        var indx = this.remoteEntities.findIndex( re => re.Address == e.Address );
         if ( -1 == indx ) {
           this.remoteEntities.push( e );
         }

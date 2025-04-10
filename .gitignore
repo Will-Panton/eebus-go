@@ -23,3 +23,4 @@ go.work
 
 # node files
 node_modules
+/examples/controlbox/dist
