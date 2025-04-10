@@ -294,7 +294,7 @@
     public monitorings: MonitoringData = {};
 
     public remoteServices: RemoteService[] = [];
-    public remoteEntities: EntityInfo[] | undefined = [];
+    public remoteEntities: EntityInfo[] = [];
     public selectedSki = "";
     public selectedEntity: EntityInfo | undefined = undefined;
 
@@ -464,7 +464,7 @@
             break;
           }
           case MessageType.GetEntityInfos: {
-            this.remoteEntities = message.EntityInfos;
+            this.syncEntities( message.EntityInfos );
             break;
           }
           case MessageType.GetConsumptionLimit: {
@@ -592,6 +592,32 @@
         if ( ! this.monitorings[this.selectedSki][useCase] )
           this.monitorings[this.selectedSki][useCase] = {} as Monitorings;
       }
+    }
+
+    private syncEntities( entities: EntityInfo[] | undefined ) {
+      if ( undefined == entities || 0 == entities.length ) {
+        this.remoteEntities = [];
+        return;
+      }
+
+      [...this.remoteEntities].forEach( re => {
+        var indx = entities.findIndex( e => e.Name == re.Name );
+        if ( -1 == indx ) {
+          var indx2 = this.remoteEntities!.findIndex( e => e.Name == re.Name );
+          this.remoteEntities = this.remoteEntities.splice( indx2, 1 );
+        }
+      } )
+
+      entities.forEach( e => {
+        var indx = this.remoteEntities.findIndex( re => re.Name == e.Name );
+        if ( -1 == indx ) {
+          this.remoteEntities.push( e );
+        }
+        else {
+          this.remoteEntities[indx].Features = e.Features;
+          this.remoteEntities[indx].UseCases = e.UseCases;
+        }
+      } );
     }
 
     public serviceSelected() {
