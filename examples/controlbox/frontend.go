@@ -27,35 +27,36 @@ const (
 	GetServiceList                 = 4
 	SelectService                  = 5
 	GetEntityInfos                 = 6
-	GetAllData                     = 7
-	SetConsumptionLimit            = 8
-	GetConsumptionLimit            = 9
-	SetProductionLimit             = 10
-	GetProductionLimit             = 11
-	SetConsumptionFailsafeValue    = 12
-	GetConsumptionFailsafeValue    = 13
-	SetConsumptionFailsafeDuration = 14
-	GetConsumptionFailsafeDuration = 15
-	SetProductionFailsafeValue     = 16
-	GetProductionFailsafeValue     = 17
-	SetProductionFailsafeDuration  = 18
-	GetProductionFailsafeDuration  = 19
-	GetConsumptionNominalMax       = 20
-	GetProductionNominalMax        = 21
-	GetConsumptionHeartbeat        = 22
-	StopConsumptionHeartbeat       = 23
-	StartConsumptionHeartbeat      = 24
-	GetProductionHeartbeat         = 25
-	StopProductionHeartbeat        = 26
-	StartProductionHeartbeat       = 27
-	GetPowerLimitationFactor       = 28
-	GetPower                       = 29
-	GetPowerPerPhase               = 30
-	GetEnergyFeedIn                = 31
-	GetEnergyConsumed              = 32
-	GetCurrentPerPhase             = 33
-	GetVoltagePerPhase             = 34
-	GetFrequency                   = 35
+	GetUseCaseInfos                = 7
+	GetAllData                     = 8
+	SetConsumptionLimit            = 9
+	GetConsumptionLimit            = 10
+	SetProductionLimit             = 11
+	GetProductionLimit             = 12
+	SetConsumptionFailsafeValue    = 13
+	GetConsumptionFailsafeValue    = 14
+	SetConsumptionFailsafeDuration = 15
+	GetConsumptionFailsafeDuration = 16
+	SetProductionFailsafeValue     = 17
+	GetProductionFailsafeValue     = 18
+	SetProductionFailsafeDuration  = 19
+	GetProductionFailsafeDuration  = 20
+	GetConsumptionNominalMax       = 21
+	GetProductionNominalMax        = 22
+	GetConsumptionHeartbeat        = 23
+	StopConsumptionHeartbeat       = 24
+	StartConsumptionHeartbeat      = 25
+	GetProductionHeartbeat         = 26
+	StopProductionHeartbeat        = 27
+	StartProductionHeartbeat       = 28
+	GetPowerLimitationFactor       = 29
+	GetPower                       = 30
+	GetPowerPerPhase               = 31
+	GetEnergyFeedIn                = 32
+	GetEnergyConsumed              = 33
+	GetCurrentPerPhase             = 34
+	GetVoltagePerPhase             = 35
+	GetFrequency                   = 36
 )
 
 type RemoteInfo struct {
@@ -64,32 +65,40 @@ type RemoteInfo struct {
 	UseCases []string
 }
 
+type UseCaseInfo struct {
+	Actor string
+	Names []string
+}
+
 type EntityInfo struct {
 	Address  string
 	Name     string
 	SKI      string
 	Type     string
 	Features []string
-	UseCases []string
 }
 
 type Message struct {
-	Type        int
-	Text        string
-	Limit       ucapi.LoadLimit
-	Value       float64
-	Values      []float64
-	ServiceList []shipapi.RemoteService
-	EntityInfos []EntityInfo
-	UseCase     string
+	SKI          string
+	Type         int
+	Text         string
+	Limit        ucapi.LoadLimit
+	Value        float64
+	Values       []float64
+	ServiceList  []shipapi.RemoteService
+	EntityInfos  []EntityInfo
+	UseCaseInfos map[string][]UseCaseInfo
+	UseCase      string
 }
 
 func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string) {
-	if (ucs == nil || slices.Contains(ucs, "LPC")) && slices.Contains(h.remoteInfos[entity.Device().Ski()].UseCases, "LPC") {
+	ski := entity.Device().Ski()
+
+	if (ucs == nil || slices.Contains(ucs, "LPC")) && slices.Contains(h.remoteInfos[ski].UseCases, "LPC") {
 		if currentLimit, err := h.uclpc.ConsumptionLimit(entity); err == nil {
 			h.consumptionLimits = currentLimit
 
-			frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+			frontend.sendLimit(ski, GetConsumptionLimit, "LPC", ucapi.LoadLimit{
 				IsActive: currentLimit.IsActive,
 				Duration: currentLimit.Duration / time.Second,
 				Value:    currentLimit.Value})
@@ -98,27 +107,27 @@ func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string
 		if limit, err := h.uclpc.FailsafeConsumptionActivePowerLimit(entity); err == nil {
 			h.consumptionFailsafeLimits.Value = limit
 
-			frontend.sendValue(GetConsumptionFailsafeValue, "LPC", limit)
+			frontend.sendValue(ski, GetConsumptionFailsafeValue, "LPC", limit)
 		}
 
 		if duration, err := h.uclpc.FailsafeDurationMinimum(entity); err == nil {
 			h.consumptionFailsafeLimits.Duration = duration
 
-			frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
+			frontend.sendValue(ski, GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
 		}
 
 		if nominal, err := h.uclpc.ConsumptionNominalMax(entity); err == nil {
 			h.consumptionNominalMax = nominal
 
-			frontend.sendValue(GetConsumptionNominalMax, "LPC", nominal)
+			frontend.sendValue(ski, GetConsumptionNominalMax, "LPC", nominal)
 		}
 	}
 
-	if (ucs == nil || slices.Contains(ucs, "LPP")) && slices.Contains(h.remoteInfos[entity.Device().Ski()].UseCases, "LPP") {
+	if (ucs == nil || slices.Contains(ucs, "LPP")) && slices.Contains(h.remoteInfos[ski].UseCases, "LPP") {
 		if currentLimit, err := h.uclpp.ProductionLimit(entity); err == nil {
 			h.productionLimits = currentLimit
 
-			frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+			frontend.sendLimit(ski, GetProductionLimit, "LPP", ucapi.LoadLimit{
 				IsActive: currentLimit.IsActive,
 				Duration: currentLimit.Duration / time.Second,
 				Value:    currentLimit.Value})
@@ -127,47 +136,47 @@ func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string
 		if limit, err := h.uclpp.FailsafeProductionActivePowerLimit(entity); err == nil {
 			h.productionFailsafeLimits.Value = limit
 
-			frontend.sendValue(GetProductionFailsafeValue, "LPP", limit)
+			frontend.sendValue(ski, GetProductionFailsafeValue, "LPP", limit)
 		}
 
 		if duration, err := h.uclpp.FailsafeDurationMinimum(entity); err == nil {
 			h.productionFailsafeLimits.Duration = duration
 
-			frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
+			frontend.sendValue(ski, GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
 		}
 
 		if nominal, err := h.uclpp.ProductionNominalMax(entity); err == nil {
 			h.productionNominalMax = nominal
 
-			frontend.sendValue(GetProductionNominalMax, "LPP", nominal)
+			frontend.sendValue(ski, GetProductionNominalMax, "LPP", nominal)
 		}
 	}
 }
 
-func sendData(h *controlbox, uc string) {
+func sendData(h *controlbox, ski string, uc string) {
 	switch uc {
 	case "":
 		frontend.sendText(QRCode, h.myService.QRCodeText())
 
 	case "LPC":
-		frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+		frontend.sendLimit(ski, GetConsumptionLimit, "LPC", ucapi.LoadLimit{
 			IsActive: h.consumptionLimits.IsActive,
 			Duration: h.consumptionLimits.Duration / time.Second,
 			Value:    h.consumptionLimits.Value})
 
-		frontend.sendValue(GetConsumptionFailsafeValue, "LPC", h.consumptionFailsafeLimits.Value)
+		frontend.sendValue(ski, GetConsumptionFailsafeValue, "LPC", h.consumptionFailsafeLimits.Value)
 
-		frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
+		frontend.sendValue(ski, GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
 
 	case "LPP":
-		frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+		frontend.sendLimit(ski, GetProductionLimit, "LPP", ucapi.LoadLimit{
 			IsActive: h.productionLimits.IsActive,
 			Duration: h.productionLimits.Duration / time.Second,
 			Value:    h.productionLimits.Value})
 
-		frontend.sendValue(GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
+		frontend.sendValue(ski, GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
 
-		frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
+		frontend.sendValue(ski, GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
 
 	default:
 		return
@@ -209,7 +218,7 @@ func serveWs(h *controlbox, w http.ResponseWriter, r *http.Request) {
 
 	frontend.sendServiceList(GetServiceList, h.currentRemoteServices)
 
-	sendData(h, "")
+	sendData(h, "", "")
 
 	reader(h, ws)
 }
@@ -248,8 +257,12 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			if nil != h.remoteInfos {
 				frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
 			}
+		case GetUseCaseInfos:
+			if nil != h.remoteInfos {
+				frontend.sendUseCaseInfo(GetUseCaseInfos, h.useCaseInfos)
+			}
 		case GetAllData:
-			sendData(h, data.Text)
+			sendData(h, data.SKI, data.Text)
 		case SetConsumptionLimit:
 			var limit = data.Limit
 
@@ -308,6 +321,6 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			h.uclpc.StartHeartbeat()
 		}
 
-		frontend.sendNotification(Acknowledge, "")
+		frontend.sendNotification("", Acknowledge, "")
 	}
 }

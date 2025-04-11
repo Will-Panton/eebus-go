@@ -34,6 +34,14 @@
     </div>
 
     <div v-if="'' < selectedSki && !! remoteEntities" class="devices">
+      <label class="device-select-label">Actors:</label>
+      <VueSelect v-model="selectedActor" :options="optionActors"
+        v-bind:placeholder="optionActors.length + (optionActors.length == 1 ? ' actor' : ' actors')">
+      </VueSelect>
+      <label class="device-select-label">Usecases:</label>
+      <VueSelect :options="optionUsecases"
+        v-bind:placeholder="! selectedActor ? '' : (optionUsecases.length + (optionUsecases.length == 1 ? ' usecase' : ' usecases'))">
+      </VueSelect>
       <label class="device-select-label">Entities:</label>
       <VueSelect v-model="selectedEntity" :options="optionEntities"
         v-bind:placeholder="optionEntities.length + (optionEntities.length == 1 ? ' entity' : ' entities')">
@@ -42,13 +50,9 @@
       <VueSelect :options="optionFeatures"
         v-bind:placeholder="! selectedEntity ? '' : (optionFeatures.length + (optionFeatures.length == 1 ? ' feature' : ' features'))">
       </VueSelect>
-      <label class="device-select-label">Usecases:</label>
-      <VueSelect :options="optionUsecases"
-        v-bind:placeholder="! selectedEntity ? '' : (optionUsecases.length + (optionUsecases.length == 1 ? ' usecase' : ' usecases'))">
-      </VueSelect>
     </div>
     <div class="usecases">
-      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPC'] && existsUC('LPC')">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPC'] && existsUC('limitationOfPowerConsumption')">
         <h3>Consumption Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
@@ -70,7 +74,7 @@
           <button type="button" @click="setConsumptionFailsafeDuration">Set</button>
 
           <label>Nominal Maximum [W]:</label>
-          <input type="number" v-model="consumptionNominalMax" />
+          <input type="number" v-model="consumptionNominalMax[selectedSki]" />
           <div></div>
 
           <label>Heartbeat:</label>
@@ -80,7 +84,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPP'] && existsUC('LPP')">
+      <div v-if="'' < selectedSki && !!selectedLs && !!selectedLs['LPP'] && existsUC('limitationOfPowerProduction')">
         <h3>Production Limit</h3>
         <div class="form-line3">
           <label>Active:</label>
@@ -102,7 +106,7 @@
           <button type="button" @click="setProductionFailsafeDuration">Set</button>
           
           <label>Nominal Maximum [W]:</label>
-          <input type="number" v-model="productionNominalMax" />
+          <input type="number" v-model="productionNominalMax[selectedSki]" />
           <div></div>
 
           <label>Heartbeat:</label>
@@ -112,7 +116,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MGCP'] && existsUC('MGCP')">
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MGCP'] && existsUC('monitoringOfGridConnectionPoint')">
         <h3>Monitoring Grid Connection Point</h3>
         <div class="form-line2">
           <label>Power Limitation Factor:</label>
@@ -144,7 +148,7 @@
         </div>
       </div>
 
-      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MPC'] && existsUC('MPC')">
+      <div v-if="'' < selectedSki && !!selectedMs && !!selectedMs['MPC'] && existsUC('monitoringOfPowerConsumption')">
         <h3>Monitoring Power Consumption</h3>
         <div class="form-line2">
           <label>Power:</label>
@@ -196,35 +200,36 @@
     GetServiceList                 = 4,
     SelectService                  = 5,
     GetEntityInfos                 = 6,
-    GetAllData                     = 7,
-    SetConsumptionLimit            = 8,
-    GetConsumptionLimit            = 9,
-    SetProductionLimit             = 10,
-    GetProductionLimit             = 11,
-    SetConsumptionFailsafeValue    = 12,
-    GetConsumptionFailsafeValue    = 13,
-    SetConsumptionFailsafeDuration = 14,
-    GetConsumptionFailsafeDuration = 15,
-    SetProductionFailsafeValue     = 16,
-    GetProductionFailsafeValue     = 17,
-    SetProductionFailsafeDuration  = 18,
-    GetProductionFailsafeDuration  = 19,
-    GetConsumptionNominalMax       = 20,
-    GetProductionNominalMax        = 21,
-    GetConsumptionHeartbeat        = 22,
-    StopConsumptionHeartbeat       = 23,
-    StartConsumptionHeartbeat      = 24,
-    GetProductionHeartbeat         = 25,
-    StopProductionHeartbeat        = 26,
-    StartProductionHeartbeat       = 27,
-  	GetPowerLimitationFactor       = 28,
-  	GetPower                       = 29,
-    GetPowerPerPhase               = 30,
-	  GetEnergyFeedIn                = 31,
-	  GetEnergyConsumed              = 32,
-	  GetCurrentPerPhase             = 33,
-	  GetVoltagePerPhase             = 34,
-	  GetFrequency                   = 35
+    GetUseCaseInfos                = 7,
+    GetAllData                     = 8,
+    SetConsumptionLimit            = 9,
+    GetConsumptionLimit            = 10,
+    SetProductionLimit             = 11,
+    GetProductionLimit             = 12,
+    SetConsumptionFailsafeValue    = 13,
+    GetConsumptionFailsafeValue    = 14,
+    SetConsumptionFailsafeDuration = 15,
+    GetConsumptionFailsafeDuration = 16,
+    SetProductionFailsafeValue     = 17,
+    GetProductionFailsafeValue     = 18,
+    SetProductionFailsafeDuration  = 19,
+    GetProductionFailsafeDuration  = 20,
+    GetConsumptionNominalMax       = 21,
+    GetProductionNominalMax        = 22,
+    GetConsumptionHeartbeat        = 23,
+    StopConsumptionHeartbeat       = 24,
+    StartConsumptionHeartbeat      = 25,
+    GetProductionHeartbeat         = 26,
+    StopProductionHeartbeat        = 27,
+    StartProductionHeartbeat       = 28,
+  	GetPowerLimitationFactor       = 29,
+  	GetPower                       = 30,
+    GetPowerPerPhase               = 31,
+	  GetEnergyFeedIn                = 32,
+	  GetEnergyConsumed              = 33,
+	  GetCurrentPerPhase             = 34,
+	  GetVoltagePerPhase             = 35,
+	  GetFrequency                   = 36
 }
 
   interface Limits {
@@ -262,24 +267,32 @@
     Name:     string,
     SKI:      string,
     Type:     string,
-    Features: string[],
-    UseCases: string[]
+    Features: string[]
   }
+
+  interface UseCaseInfo {
+    Actor: string,
+    Names: string[]
+  }
+
+  type UseCaseInfos = {[key:string]:UseCaseInfo[]}
 
   interface Message {
-    Type:         MessageType,
-    Text?:        string,
-    Limit?:       Limits,
-    Value?:       number,
-    Values?:      number[],
-    ServiceList?: RemoteService[],
-    EntityInfos?: EntityInfo[],
-    UseCase?:     string
+    SKI:           string,
+    Type:          MessageType,
+    Text?:         string,
+    Limit?:        Limits,
+    Value?:        number,
+    Values?:       number[],
+    ServiceList?:  RemoteService[],
+    EntityInfos?:  EntityInfo[],
+    UseCaseInfos?: UseCaseInfos
+    UseCase?:      string
   }
 
-  type UCLimits = {[key:string]:Limits};
-  type LimitData = {[key:string]:UCLimits};
-  type UCMonitorings = {[key:string]:Monitorings};
+  type UCLimits       = {[key:string]:Limits};
+  type LimitData      = {[key:string]:UCLimits};
+  type UCMonitorings  = {[key:string]:Monitorings};
   type MonitoringData = {[key:string]:UCMonitorings};
 
   @Component({
@@ -295,6 +308,8 @@
     public monitorings: MonitoringData = {};
 
     public remoteServices: RemoteService[] = [];
+    public useCaseInfos: UseCaseInfos = {};
+    public selectedActor: UseCaseInfo | undefined = undefined
     public remoteEntities: EntityInfo[] = [];
     public selectedSki = "";
     public selectedEntity: EntityInfo | undefined = undefined;
@@ -304,7 +319,11 @@
 
     public existsUC( uc: string ): boolean {
       var exists = false;
-      this.selectedEntities.forEach(item => exists ||= item.UseCases.includes(uc));
+      
+      this.useCaseInfos[this.selectedSki]?.forEach( uci => {
+        exists ||= uci.Names.includes( uc );
+      } );
+
       return exists;
     }
 
@@ -326,9 +345,35 @@
       return options;
     }
 
+    public get optionActors() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.useCaseInfos[this.selectedSki]) {
+        this.useCaseInfos[this.selectedSki].forEach(item => { options.push( {
+            label: item.Actor,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
+
+    public get optionUsecases() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.selectedActor ) {
+        this.selectedActor.Names.forEach( item => { options.push( {
+            label: item,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
+
     public get selectedEntities(): EntityInfo[] {
       if ( "" < this.selectedSki && !! this.remoteEntities ) {
-        return this.remoteEntities.filter( (re) => re.SKI == this.selectedSki );
+        return this.remoteEntities.filter( re => re.SKI == this.selectedSki );
       }
       else {
         return [];
@@ -341,6 +386,19 @@
       if ( "" < this.selectedSki && !! this.selectedEntities ) {
         this.selectedEntities.forEach(item => { options.push({
             label: item.Name,
+            value: item
+          });        
+        });
+      }
+      return options;
+    }
+
+    public get optionFeatures() {
+      var options:any[] = [];
+
+      if ( "" < this.selectedSki && !! this.selectedEntity ) {
+        this.selectedEntity.Features.forEach(item => { options.push({
+            label: item,
             value: item
           });        
         });
@@ -388,34 +446,8 @@
       }
     }
 
-    public get optionFeatures() {
-      var options:any[] = [];
-
-      if ( "" < this.selectedSki && !! this.selectedEntity ) {
-        this.selectedEntity.Features.forEach(item => { options.push({
-            label: item,
-            value: item
-          });        
-        });
-      }
-      return options;
-    }
-
-    public get optionUsecases() {
-      var options:any[] = [];
-
-      if ( "" < this.selectedSki && !! this.selectedEntity ) {
-        this.selectedEntity.UseCases.forEach(item => { options.push({
-            label: item,
-            value: item
-          });        
-        });
-      }
-      return options;
-    }
-
-    public consumptionNominalMax: number = 0;
-    public productionNominalMax:  number = 0;
+    public consumptionNominalMax: {[key: string]: number} = {};
+    public productionNominalMax:  {[key: string]: number} = {};
 
     public consumptionHeartbeat:        boolean = false;
     public consumptionHeartbeatEnabled: boolean = true;
@@ -468,58 +500,62 @@
             this.syncEntities( message.EntityInfos );
             break;
           }
+          case MessageType.GetUseCaseInfos: {
+            this.syncUseCases( message.UseCaseInfos );
+            break;
+          }
           case MessageType.GetConsumptionLimit: {
             if ( ! this.lpcUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-              this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-              this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+              this.limits[message.SKI][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+              this.limits[message.SKI][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
             }
             break;
           }
           case MessageType.GetProductionLimit: {
             if ( ! this.lppUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
-              this.limits[this.selectedSki][message.UseCase!].Value    = message.Limit?.Value ?? 0;
-              this.limits[this.selectedSki][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
+              this.limits[message.SKI][message.UseCase!].IsActive = message.Limit?.IsActive ?? false;
+              this.limits[message.SKI][message.UseCase!].Value    = message.Limit?.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].Duration = message.Limit?.Duration ?? 0;
             }
             break;
           }
           case MessageType.GetConsumptionFailsafeValue: {
             if ( ! this.lpcUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].FSValue = message.Value ?? 0;
             }
             break;
           }
           case MessageType.GetProductionFailsafeValue: {
             if ( ! this.lppUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].FSValue = message.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].FSValue = message.Value ?? 0;
             }
             break;
           }
           case MessageType.GetConsumptionFailsafeDuration: {
             if ( ! this.lpcUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].FSDuration = message.Value ?? 0;
             }
             break;
           }
           case MessageType.GetProductionFailsafeDuration: {
             if ( ! this.lppUserChanged ) {
               this.updateDeviceData( message.UseCase! );
-              this.limits[this.selectedSki][message.UseCase!].FSDuration = message.Value ?? 0;
+              this.limits[message.SKI][message.UseCase!].FSDuration = message.Value ?? 0;
             }
             break;
           }
           case MessageType.GetConsumptionNominalMax: {
-            this.consumptionNominalMax = message.Value ?? 0;
+            this.consumptionNominalMax[message.SKI] = message.Value ?? 0;
             break;
           }
           case MessageType.GetProductionNominalMax: {
-            this.productionNominalMax = message.Value ?? 0;
+            this.productionNominalMax[message.SKI] = message.Value ?? 0;
             break;
           }
           case MessageType.GetConsumptionHeartbeat: {
@@ -538,42 +574,42 @@
           }
           case MessageType.GetPowerLimitationFactor: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].PowerLimitationFactor = message.Value ?? 0;
+            this.monitorings[message.SKI][message.UseCase!].PowerLimitationFactor = message.Value ?? 0;
             break;
           }
 	        case MessageType.GetPower: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].Power = message.Value ?? 0;
+            this.monitorings[message.SKI][message.UseCase!].Power = message.Value ?? 0;
             break;
           }
         	case MessageType.GetPowerPerPhase: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].PowerPerPhase = message.Values ?? [0, 0, 0];
+            this.monitorings[message.SKI][message.UseCase!].PowerPerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetEnergyFeedIn: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].EnergyFeedIn = message.Value ?? 0;
+            this.monitorings[message.SKI][message.UseCase!].EnergyFeedIn = message.Value ?? 0;
             break;
           }
         	case MessageType.GetEnergyConsumed: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].EnergyConsumed = message.Value ?? 0;
+            this.monitorings[message.SKI][message.UseCase!].EnergyConsumed = message.Value ?? 0;
             break;
           }
         	case MessageType.GetCurrentPerPhase: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].CurrentPerPhase = message.Values ?? [0, 0, 0];
+            this.monitorings[message.SKI][message.UseCase!].CurrentPerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetVoltagePerPhase: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].VoltagePerPhase = message.Values ?? [0, 0, 0];
+            this.monitorings[message.SKI][message.UseCase!].VoltagePerPhase = message.Values ?? [0, 0, 0];
             break;
           }
         	case MessageType.GetFrequency: {
             this.updateDeviceData( message.UseCase! );
-            this.monitorings[this.selectedSki][message.UseCase!].Frequency = message.Value ?? 0;
+            this.monitorings[message.SKI][message.UseCase!].Frequency = message.Value ?? 0;
             break;
           }
         }   
@@ -616,8 +652,30 @@
         }
         else {
           this.remoteEntities[indx].Features = e.Features;
-          this.remoteEntities[indx].UseCases = e.UseCases;
         }
+      } );
+    }
+
+    private syncUseCases( useCaseInfos: UseCaseInfos | undefined ) {
+      Object.keys( useCaseInfos! ).forEach( ski => {
+        var infosOld = this.useCaseInfos[ski] ?? [];
+        var infosNew = useCaseInfos![ski];
+
+        [...infosOld].forEach( (infoOld, index) => {
+            if ( undefined == infosNew.find( infoNew => infoNew.Actor == infoOld.Actor ) ) {
+              infosOld = infosOld.splice( index, 1 );
+            }
+        } );
+
+        infosNew.forEach( infoNew => {
+          var infoOld = infosOld.find( infoOld => infoOld.Actor == infoNew.Actor )
+          if ( undefined == infoOld )
+            infosOld.push( infoNew );
+          else
+            infoOld.Names = infoNew.Names;    
+        } );
+        
+        this.useCaseInfos[ski] = infosOld;
       } );
     }
 
@@ -628,6 +686,7 @@
 
     private sendNotification( type: MessageType, param: string = "" ) {
       let command: Message = {
+        SKI:  this.selectedSki,
         Type: type,
         Text: param
       };
@@ -637,6 +696,7 @@
 
     private sendText( text: string ) {
       let command: Message = {
+        SKI:  this.selectedSki,
         Type: MessageType.Text,
         Text: text,
       };
@@ -646,6 +706,7 @@
 
     private sendLimits( type: MessageType, value: Limits ) {
       let command: Message = {
+        SKI:   this.selectedSki,
         Type:  type,
         Limit: value
       };
@@ -655,6 +716,7 @@
 
     private sendValue( type: MessageType, value: number ) {
       let command: Message = {
+        SKI:   this.selectedSki,
         Type:  type,
         Value: value
       };

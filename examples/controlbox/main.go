@@ -55,8 +55,9 @@ func (websocketClient *WebsocketClient) sendMessage(msg interface{}) error {
 	return err
 }
 
-func (websocketClient *WebsocketClient) sendNotification(messageType int, uc string) error {
+func (websocketClient *WebsocketClient) sendNotification(ski string, messageType int, uc string) error {
 	answer := Message{
+		SKI:     ski,
 		Type:    messageType,
 		UseCase: uc}
 
@@ -71,8 +72,9 @@ func (websocketClient *WebsocketClient) sendText(messageType int, text string) e
 	return websocketClient.sendMessage(answer)
 }
 
-func (websocketClient *WebsocketClient) sendValue(messageType int, useCase string, value float64) error {
+func (websocketClient *WebsocketClient) sendValue(ski string, messageType int, useCase string, value float64) error {
 	answer := Message{
+		SKI:     ski,
 		Type:    messageType,
 		Value:   value,
 		UseCase: useCase}
@@ -80,8 +82,9 @@ func (websocketClient *WebsocketClient) sendValue(messageType int, useCase strin
 	return websocketClient.sendMessage(answer)
 }
 
-func (websocketClient *WebsocketClient) sendValueArr(messageType int, useCase string, values []float64) error {
+func (websocketClient *WebsocketClient) sendValueArr(ski string, messageType int, useCase string, values []float64) error {
 	answer := Message{
+		SKI:     ski,
 		Type:    messageType,
 		Values:  values,
 		UseCase: useCase}
@@ -89,8 +92,9 @@ func (websocketClient *WebsocketClient) sendValueArr(messageType int, useCase st
 	return websocketClient.sendMessage(answer)
 }
 
-func (websocketClient *WebsocketClient) sendLimit(messageType int, useCase string, limit ucapi.LoadLimit) error {
+func (websocketClient *WebsocketClient) sendLimit(ski string, messageType int, useCase string, limit ucapi.LoadLimit) error {
 	answer := Message{
+		SKI:     ski,
 		Type:    messageType,
 		Limit:   limit,
 		UseCase: useCase}
@@ -127,8 +131,7 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 					Name:     string(entity.EntityType()),
 					SKI:      device.Ski(),
 					Type:     string(*device.DeviceType()),
-					Features: features,
-					UseCases: websocketClient.getRemoteUsecases(entity)}
+					Features: features}
 
 				entityInfos = append(entityInfos, info)
 			}
@@ -142,48 +145,15 @@ func (websocketClient *WebsocketClient) sendEntityInfo(messageType int, remoteIn
 	return websocketClient.sendMessage(answer)
 }
 
-func (websocketClient *WebsocketClient) getRemoteUsecases(entity spineapi.EntityRemoteInterface) []string {
-	remoteUsecases := []string{}
+func (websocketClient *WebsocketClient) sendUseCaseInfo(messageType int, useCaseInfos map[string][]UseCaseInfo) error {
+	websocketClient.mutex2.Lock()
+	defer websocketClient.mutex2.Unlock()
 
-	feature := entity.FeatureOfTypeAndRole(model.FeatureTypeTypeLoadControl, model.RoleTypeServer)
-	if feature != nil {
-		d := feature.DataCopy(model.FunctionTypeLoadControlLimitDescriptionListData)
-		if d != nil {
-			l, ok := d.(*model.LoadControlLimitDescriptionListDataType)
-			if ok && l != nil {
-				for _, limitDescription := range l.LoadControlLimitDescriptionData {
-					if limitDescription.LimitDirection != nil {
-						if *limitDescription.LimitDirection == model.EnergyDirectionTypeConsume {
-							remoteUsecases = append(remoteUsecases, "LPC")
-						} else if *limitDescription.LimitDirection == model.EnergyDirectionTypeProduce {
-							remoteUsecases = append(remoteUsecases, "LPP")
-						}
-					}
-				}
-			}
-		}
-	}
+	answer := Message{
+		Type:         messageType,
+		UseCaseInfos: useCaseInfos}
 
-	feature = entity.FeatureOfTypeAndRole(model.FeatureTypeTypeMeasurement, model.RoleTypeServer)
-	if feature != nil {
-		d := feature.DataCopy(model.FunctionTypeMeasurementDescriptionListData)
-		if d != nil {
-			m, ok := d.(*model.MeasurementDescriptionListDataType)
-			if ok && m != nil {
-				for _, measureDescription := range m.MeasurementDescriptionData {
-					if measureDescription.ScopeType != nil {
-						if *measureDescription.ScopeType == model.ScopeTypeTypeACEnergyConsumed {
-							remoteUsecases = append(remoteUsecases, "MPC")
-						} else if *measureDescription.ScopeType == model.ScopeTypeTypeGridConsumption {
-							remoteUsecases = append(remoteUsecases, "MGCP")
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return remoteUsecases
+	return websocketClient.sendMessage(answer)
 }
 
 var frontend WebsocketClient
@@ -203,7 +173,8 @@ type controlbox struct {
 
 	isConnected bool
 
-	remoteInfos map[string]RemoteInfo
+	remoteInfos  map[string]RemoteInfo
+	useCaseInfos map[string][]UseCaseInfo
 
 	consumptionLimits         ucapi.LoadLimit
 	productionLimits          ucapi.LoadLimit
@@ -292,6 +263,7 @@ func (h *controlbox) run() {
 	h.myService.AddUseCase(h.ucmpc)
 
 	h.remoteInfos = map[string]RemoteInfo{}
+	h.useCaseInfos = map[string][]UseCaseInfo{}
 
 	h.myService.Start()
 }
@@ -310,7 +282,7 @@ func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski str
 	fmt.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected = false
 
-	frontend.sendNotification(ServiceListChanged, "")
+	frontend.sendNotification("", ServiceListChanged, "")
 }
 
 func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, entries []shipapi.RemoteService) {
@@ -325,7 +297,7 @@ func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, 
 
 	h.currentRemoteServices = entries
 
-	frontend.sendNotification(ServiceListChanged, "")
+	frontend.sendNotification("", ServiceListChanged, "")
 }
 
 func (h *controlbox) ServiceShipIDUpdate(ski string, shipdID string) {
@@ -351,7 +323,7 @@ func (h *controlbox) ServicePairingDetailUpdate(ski string, detail *shipapi.Conn
 		os.Exit(0)
 	}
 
-	frontend.sendNotification(ServiceListChanged, "")
+	frontend.sendNotification("", ServiceListChanged, "")
 }
 
 func (h *controlbox) AllowWaitingForTrust(ski string) bool {
@@ -377,6 +349,25 @@ func (h *controlbox) updateEntityInfos(ski string, device spineapi.DeviceRemoteI
 			h.remoteInfos[ski] = info
 		}
 	}
+}
+
+func (h *controlbox) updateUseCaseInfos(ski string, device spineapi.DeviceRemoteInterface) {
+	info := []UseCaseInfo{}
+
+	for _, uc := range device.UseCases() {
+		actor := string(*uc.Actor)
+		names := []string{}
+		for _, ucs := range uc.UseCaseSupport {
+			names = append(names, string(*ucs.UseCaseName))
+		}
+
+		info = append(info, UseCaseInfo{
+			Actor: actor,
+			Names: names,
+		})
+	}
+
+	h.useCaseInfos[ski] = info
 }
 
 // LPC Event Handler
@@ -423,7 +414,7 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 		return
 	}
 
-	frontend.sendValue(GetConsumptionNominalMax, "LPC", nominal)
+	frontend.sendValue(entity.Device().Ski(), GetConsumptionNominalMax, "LPC", nominal)
 }
 
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
@@ -438,6 +429,8 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	h.updateEntityInfos(ski, device, "LPC")
 	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+	h.updateUseCaseInfos(ski, device)
+	frontend.sendUseCaseInfo(GetUseCaseInfos, h.useCaseInfos)
 
 	switch event {
 	case lpc.UseCaseSupportUpdate:
@@ -455,7 +448,7 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 				} else {
 					fmt.Println("New consumption limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
 				}
-				frontend.sendLimit(GetConsumptionLimit, "LPC", ucapi.LoadLimit{
+				frontend.sendLimit(ski, GetConsumptionLimit, "LPC", ucapi.LoadLimit{
 					IsActive: currentLimit.IsActive,
 					Duration: currentLimit.Duration / time.Second,
 					Value:    currentLimit.Value})
@@ -468,7 +461,7 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 				h.consumptionFailsafeLimits.Value = limit
 
-				frontend.sendValue(GetConsumptionFailsafeValue, "LPC", limit)
+				frontend.sendValue(ski, GetConsumptionFailsafeValue, "LPC", limit)
 			}
 		}
 	case lpc.DataUpdateFailsafeDurationMinimum:
@@ -478,13 +471,13 @@ func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 				h.consumptionFailsafeLimits.Duration = duration
 
-				frontend.sendValue(GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
+				frontend.sendValue(ski, GetConsumptionFailsafeDuration, "LPC", float64(duration/time.Second))
 			}
 		}
 	case lpc.DataUpdateHeartbeat:
 		if ski == remoteSki {
 			h.readConsumptionNominalMax(entity)
-			frontend.sendNotification(GetConsumptionHeartbeat, "LPC")
+			frontend.sendNotification(ski, GetConsumptionHeartbeat, "LPC")
 		}
 	default:
 		return
@@ -535,7 +528,7 @@ func (h *controlbox) readProductionNominalMax(entity spineapi.EntityRemoteInterf
 		return
 	}
 
-	frontend.sendValue(GetProductionNominalMax, "LPP", nominal)
+	frontend.sendValue(entity.Device().Ski(), GetProductionNominalMax, "LPP", nominal)
 }
 
 func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
@@ -550,6 +543,8 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	h.updateEntityInfos(ski, device, "LPP")
 	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+	h.updateUseCaseInfos(ski, device)
+	frontend.sendUseCaseInfo(GetUseCaseInfos, h.useCaseInfos)
 
 	switch event {
 	case lpp.UseCaseSupportUpdate:
@@ -568,7 +563,7 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 					fmt.Println("New production limit received: inactive,", currentLimit.Value, "W,", currentLimit.Duration)
 				}
 
-				frontend.sendLimit(GetProductionLimit, "LPP", ucapi.LoadLimit{
+				frontend.sendLimit(ski, GetProductionLimit, "LPP", ucapi.LoadLimit{
 					IsActive: currentLimit.IsActive,
 					Duration: currentLimit.Duration / time.Second,
 					Value:    currentLimit.Value})
@@ -581,7 +576,7 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 				h.productionFailsafeLimits.Value = limit
 
-				frontend.sendValue(GetProductionFailsafeValue, "LPP", limit)
+				frontend.sendValue(ski, GetProductionFailsafeValue, "LPP", limit)
 			}
 		}
 	case lpp.DataUpdateFailsafeDurationMinimum:
@@ -591,13 +586,13 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 				h.productionFailsafeLimits.Duration = duration
 
-				frontend.sendValue(GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
+				frontend.sendValue(ski, GetProductionFailsafeDuration, "LPP", float64(duration/time.Second))
 			}
 		}
 	case lpp.DataUpdateHeartbeat:
 		if ski == remoteSki {
 			h.readProductionNominalMax(entity)
-			frontend.sendNotification(GetProductionHeartbeat, "LPP")
+			frontend.sendNotification(ski, GetProductionHeartbeat, "LPP")
 		}
 	default:
 		return
@@ -616,6 +611,8 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 	h.updateEntityInfos(ski, device, "MGCP")
 	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+	h.updateUseCaseInfos(ski, device)
+	frontend.sendUseCaseInfo(GetUseCaseInfos, h.useCaseInfos)
 
 	switch event {
 	case mgcp.UseCaseSupportUpdate:
@@ -623,31 +620,31 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 
 	case mgcp.DataUpdatePowerLimitationFactor:
 		if powerLimitFactor, err := h.ucmgcp.PowerLimitationFactor(entity); err == nil {
-			frontend.sendValue(GetPowerLimitationFactor, "MGCP", powerLimitFactor)
+			frontend.sendValue(ski, GetPowerLimitationFactor, "MGCP", powerLimitFactor)
 		}
 	case mgcp.DataUpdatePower:
 		if power, err := h.ucmgcp.Power(entity); err == nil {
-			frontend.sendValue(GetPower, "MGCP", power)
+			frontend.sendValue(ski, GetPower, "MGCP", power)
 		}
 	case mgcp.DataUpdateEnergyFeedIn:
 		if energyFeedIn, err := h.ucmgcp.EnergyFeedIn(entity); err == nil {
-			frontend.sendValue(GetEnergyFeedIn, "MGCP", energyFeedIn)
+			frontend.sendValue(ski, GetEnergyFeedIn, "MGCP", energyFeedIn)
 		}
 	case mgcp.DataUpdateEnergyConsumed:
 		if energyConsumed, err := h.ucmgcp.EnergyConsumed(entity); err == nil {
-			frontend.sendValue(GetEnergyConsumed, "MGCP", energyConsumed)
+			frontend.sendValue(ski, GetEnergyConsumed, "MGCP", energyConsumed)
 		}
 	case mgcp.DataUpdateCurrentPerPhase:
 		if currentPerPhase, err := h.ucmgcp.CurrentPerPhase(entity); err == nil {
-			frontend.sendValueArr(GetCurrentPerPhase, "MGCP", currentPerPhase)
+			frontend.sendValueArr(ski, GetCurrentPerPhase, "MGCP", currentPerPhase)
 		}
 	case mgcp.DataUpdateVoltagePerPhase:
 		if voltagePerPhase, err := h.ucmgcp.VoltagePerPhase(entity); err == nil {
-			frontend.sendValueArr(GetVoltagePerPhase, "MGCP", voltagePerPhase)
+			frontend.sendValueArr(ski, GetVoltagePerPhase, "MGCP", voltagePerPhase)
 		}
 	case mgcp.DataUpdateFrequency:
 		if frequency, err := h.ucmgcp.Frequency(entity); err == nil {
-			frontend.sendValue(GetFrequency, "MGCP", frequency)
+			frontend.sendValue(ski, GetFrequency, "MGCP", frequency)
 		}
 	}
 }
@@ -664,6 +661,8 @@ func (h *controlbox) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	h.updateEntityInfos(ski, device, "MPC")
 	frontend.sendEntityInfo(GetEntityInfos, h.remoteInfos)
+	h.updateUseCaseInfos(ski, device)
+	frontend.sendUseCaseInfo(GetUseCaseInfos, h.useCaseInfos)
 
 	switch event {
 	case mpc.UseCaseSupportUpdate:
@@ -671,31 +670,31 @@ func (h *controlbox) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterfac
 
 	case mpc.DataUpdatePower:
 		if power, err := h.ucmpc.Power(entity); err == nil {
-			frontend.sendValue(GetPower, "MPC", power)
+			frontend.sendValue(ski, GetPower, "MPC", power)
 		}
 	case mpc.DataUpdatePowerPerPhase:
 		if powerPerPhase, err := h.ucmpc.PowerPerPhase(entity); err == nil {
-			frontend.sendValueArr(GetPowerPerPhase, "MPC", powerPerPhase)
+			frontend.sendValueArr(ski, GetPowerPerPhase, "MPC", powerPerPhase)
 		}
 	case mpc.DataUpdateEnergyConsumed:
 		if energyConsumed, err := h.ucmpc.EnergyConsumed(entity); err == nil {
-			frontend.sendValue(GetEnergyConsumed, "MPC", energyConsumed)
+			frontend.sendValue(ski, GetEnergyConsumed, "MPC", energyConsumed)
 		}
 	case mpc.DataUpdateEnergyProduced:
 		if energyFeedIn, err := h.ucmpc.EnergyProduced(entity); err == nil {
-			frontend.sendValue(GetEnergyFeedIn, "MPC", energyFeedIn)
+			frontend.sendValue(ski, GetEnergyFeedIn, "MPC", energyFeedIn)
 		}
 	case mpc.DataUpdateCurrentsPerPhase:
 		if currentPerPhase, err := h.ucmpc.CurrentPerPhase(entity); err == nil {
-			frontend.sendValueArr(GetCurrentPerPhase, "MPC", currentPerPhase)
+			frontend.sendValueArr(ski, GetCurrentPerPhase, "MPC", currentPerPhase)
 		}
 	case mpc.DataUpdateVoltagePerPhase:
 		if voltagePerPhase, err := h.ucmpc.VoltagePerPhase(entity); err == nil {
-			frontend.sendValueArr(GetVoltagePerPhase, "MPC", voltagePerPhase)
+			frontend.sendValueArr(ski, GetVoltagePerPhase, "MPC", voltagePerPhase)
 		}
 	case mpc.DataUpdateFrequency:
 		if frequency, err := h.ucmpc.Frequency(entity); err == nil {
-			frontend.sendValue(GetFrequency, "MPC", frequency)
+			frontend.sendValue(ski, GetFrequency, "MPC", frequency)
 		}
 	}
 }
