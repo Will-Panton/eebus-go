@@ -489,7 +489,7 @@
             break;
           }
           case MessageType.SelectService: {
-            if ( this.selectedSki != "" )
+            if ( this.selectedSki == "" )
               this.selectedSki = message.Text ?? "";
             break;
           }
