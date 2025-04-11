@@ -171,7 +171,7 @@ type controlbox struct {
 	ucmgcp ucapi.MaMGCPInterface
 	ucmpc  ucapi.MaMPCInterface
 
-	isConnected bool
+	isConnected map[string]bool
 
 	remoteInfos  map[string]RemoteInfo
 	useCaseInfos map[string][]UseCaseInfo
@@ -230,6 +230,8 @@ func (h *controlbox) run() {
 	serialNumber := "123456789"
 	altIdentifier := "ControlBox Simulator SN-" + serialNumber
 
+	h.isConnected = map[string]bool{}
+
 	configuration, err := api.NewConfiguration(
 		vendorCode, deviceBrand, deviceModel, serialNumber,
 		[]shipapi.DeviceCategoryType{shipapi.DeviceCategoryTypeGridConnectionHub},
@@ -273,14 +275,14 @@ func (h *controlbox) run() {
 func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 	remoteSki = ski
 	fmt.Println("RemoteSKIConnected: " + ski)
-	h.isConnected = true
+	h.isConnected[ski] = true
 
 	frontend.sendText(SelectService, ski)
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIDisconnected: " + ski)
-	h.isConnected = false
+	h.isConnected[ski] = false
 
 	frontend.sendNotification("", ServiceListChanged, "")
 }
@@ -418,9 +420,10 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 }
 
 func (h *controlbox) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	fmt.Println("--> LPC Event: " + event)
-	if !h.isConnected {
-		fmt.Println("--> LPC Event, but not connected")
+	fmt.Println("--> LPC Event: " + string(event) + " from " + ski)
+	connected, exists := h.isConnected[ski]
+	if !exists || !connected {
+		fmt.Println("--> but not connected")
 		return
 	}
 
@@ -532,9 +535,10 @@ func (h *controlbox) readProductionNominalMax(entity spineapi.EntityRemoteInterf
 }
 
 func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	fmt.Println("--> LPP Event: " + event)
-	if !h.isConnected {
-		fmt.Println("--> LPP Event but not connected")
+	fmt.Println("--> LPP Event: " + string(event) + " from " + ski)
+	connected, exists := h.isConnected[ski]
+	if !exists || !connected {
+		fmt.Println("--> but not connected")
 		return
 	}
 
@@ -600,9 +604,10 @@ func (h *controlbox) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterfac
 }
 
 func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	fmt.Println("--> MGCP Event: " + event)
-	if !h.isConnected {
-		fmt.Println("--> MGCP Event but not connected")
+	fmt.Println("--> MGCP Event: " + string(event) + " from " + ski)
+	connected, exists := h.isConnected[ski]
+	if !exists || !connected {
+		fmt.Println("--> but not connected")
 		return
 	}
 
@@ -650,9 +655,10 @@ func (h *controlbox) OnMGCPEvent(ski string, device spineapi.DeviceRemoteInterfa
 }
 
 func (h *controlbox) OnMPCEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	fmt.Println("--> MPC Event: " + event)
-	if !h.isConnected {
-		fmt.Println("--> MPC Event but not connected")
+	fmt.Println("--> MPC Event: " + string(event) + " from " + ski)
+	connected, exists := h.isConnected[ski]
+	if !exists || !connected {
+		fmt.Println("--> but not connected")
 		return
 	}
 
