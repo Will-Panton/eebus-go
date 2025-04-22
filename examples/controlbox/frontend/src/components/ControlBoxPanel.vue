@@ -23,6 +23,8 @@
     <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
       <label class="device-select-label">{{ selectedSki }}</label>
+      <label class="device-select-label">ID:</label>
+      <label class="device-select-label">{{ deviceId }}</label>
       <label class="device-select-label">Device Brand:</label>
       <label class="device-select-label">{{ deviceBrand }}</label>
       <label class="device-select-label">Device Type:</label>
@@ -77,7 +79,7 @@
           <input type="number" v-model="consumptionNominalMax[selectedSki]" />
           <div></div>
 
-          <label>Heartbeat:</label>
+          <label>Received Heartbeat:</label>
           <span v-bind:class = "(consumptionHeartbeat)?'pulse heartbeat':'pulse'">&#9673;</span>
           <!-- <button type="button" @click="toggleConsumptionHeartbeat">{{ consumptionHeartbeatEnabled ? 'Stop' : 'Start' }}</button> -->
           <div></div>
@@ -109,7 +111,7 @@
           <input type="number" v-model="productionNominalMax[selectedSki]" />
           <div></div>
 
-          <label>Heartbeat:</label>
+          <label>Received Heartbeat:</label>
           <span v-bind:class = "(productionHeartbeat)?'pulse heartbeat':'pulse'">&#9673;</span>
           <!-- <button type="button" @click="toggleProductionHeartbeat">{{ productionHeartbeatEnabled ? 'Stop' : 'Start' }}</button> -->
           <div></div>
@@ -406,6 +408,16 @@
       return options;
     }
 
+    public get deviceId() {
+      if ( "" < this.selectedSki ) {
+        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        return remoteService?.identifier ?? "";
+      }
+      else {
+        return "";
+      }
+    }
+
     public get deviceBrand() {
       if ( "" < this.selectedSki ) {
         var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
@@ -562,15 +574,15 @@
           case MessageType.GetConsumptionHeartbeat: {
             this.updateDeviceData( message.UseCase! );
             this.sendNotification( MessageType.GetAllData, message.UseCase );
-            this.consumptionHeartbeat = false;
-            setTimeout( () => this.consumptionHeartbeat = true, 1 );
+            this.consumptionHeartbeat = true;
+            setTimeout( () => this.consumptionHeartbeat = false, 1000 );
             break;
           }
           case MessageType.GetProductionHeartbeat: {
             this.updateDeviceData( message.UseCase! );
             this.sendNotification( MessageType.GetAllData, message.UseCase );
-            this.productionHeartbeat = false;
-            setTimeout( () => this.productionHeartbeat = true, 1 );
+            this.productionHeartbeat = true;
+            setTimeout( () => this.productionHeartbeat = false, 1000 );
             break;
           }
           case MessageType.GetPowerLimitationFactor: {

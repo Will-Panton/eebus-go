@@ -140,7 +140,6 @@ func (h *hems) run() {
 	})
 	_ = h.uccslpc.SetFailsafeConsumptionActivePowerLimit(4200, true)
 	_ = h.uccslpc.SetFailsafeDurationMinimum(2*time.Hour, true)
-	_ = h.uccslpc.SetConsumptionNominalMax(34500)
 
 	_ = h.uccslpp.SetProductionLimit(ucapi.LoadLimit{
 		Value:        3000,
@@ -150,7 +149,6 @@ func (h *hems) run() {
 	})
 	_ = h.uccslpp.SetFailsafeProductionActivePowerLimit(3000, true)
 	_ = h.uccslpp.SetFailsafeDurationMinimum(2*time.Hour, true)
-	_ = h.uccslpp.SetProductionNominalMax(10000)
 
 	//_ = h.ucmamgcp.
 	if len(remoteSki) == 0 {
@@ -243,7 +241,8 @@ func (h *hems) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 		// approve any write
 		for msgCounter, write := range pendingWrites {
 			fmt.Println("Approving LPC write with msgCounter", msgCounter, "and limit", write.Value, "W")
-			h.uccslpc.ApproveOrDenyConsumptionLimit(msgCounter, true, "")
+			//h.uccslpc.ApproveOrDenyConsumptionLimit(msgCounter, true, "")
+			h.uccslpc.ApproveOrDenyConsumptionLimit(msgCounter, false, "I’m not in the mood right now.")
 		}
 	case cslpc.DataUpdateLimit:
 		if currentLimit, err := h.uccslpc.ConsumptionLimit(); err == nil {
@@ -268,7 +267,6 @@ func (h *hems) OnLPCEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 			}
 		}
 	case cslpc.DataUpdateHeartbeat:
-		_ = h.uccslpc.SetConsumptionNominalMax(34500)
 	}
 }
 
@@ -369,8 +367,12 @@ func (h *hems) RemoteSKIConnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIConnected: ", ski)
 
 	time.AfterFunc(1*time.Second, func() {
+		fmt.Println("---- SetNominalMax ----")
+		_ = h.uccslpc.SetConsumptionNominalMax(34500)
+		_ = h.uccslpp.SetProductionNominalMax(10000)
 		_ = h.ucgcpmgcp.SetPowerLimitationFactor(h.gridPowerLimitFactor)
 	})
+
 }
 
 func (h *hems) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
