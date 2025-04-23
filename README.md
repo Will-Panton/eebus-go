@@ -4,7 +4,7 @@
 
 ## Foreword
 
-This project is based on the EEBUS stack developed by Andreas Linde, [eebus-go](https://github.com/enbility/eebus-go). Therefore, it is highly recommended to first familiarize yourself with the details of his project and especially read its README](https://github.com/enbility/eebus-go/blob/dev/README.md) file.
+This project is based on the EEBUS stack developed by Andreas Linde, [eebus-go](https://github.com/enbility/eebus-go). Therefore, it is highly recommended to first familiarize yourself with the details of his project and especially read its [README](https://github.com/enbility/eebus-go/blob/dev/README.md) file.
 
 The differences from the original repository include a modified `hems` example and an extended `controlbox` example, which has been enhanced with a web frontend similar to the approach taken in the [devices](https://github.com/enbility/devices) example. For testing purposes, the combination of the HEMS and controlbox simulators is ideal. In practice, the simulator has already been tested with the Vaillant Internet module VR921 and the EV Charge Controller [evcc](https://github.com/evcc-io/evcc). Additionally, there is a [folk](https://github.com/vollautomat/evcc) of evcc where the web frontend has been extended to display the currently applicable consumption limitation. 
 
