@@ -17,8 +17,9 @@ import (
 	"github.com/enbility/eebus-go/api"
 	"github.com/enbility/eebus-go/service"
 	ucapi "github.com/enbility/eebus-go/usecases/api"
-	"github.com/enbility/eebus-go/usecases/cem/vabd"
-	"github.com/enbility/eebus-go/usecases/cem/vapd"
+
+	// "github.com/enbility/eebus-go/usecases/cem/vabd"
+	// "github.com/enbility/eebus-go/usecases/cem/vapd"
 	cslpc "github.com/enbility/eebus-go/usecases/cs/lpc"
 	cslpp "github.com/enbility/eebus-go/usecases/cs/lpp"
 	gcpmgcp "github.com/enbility/eebus-go/usecases/gcp/mgcp"
@@ -122,10 +123,10 @@ func (h *hems) run() {
 	// h.myService.AddUseCase(h.uceglpp)
 	h.ucgcpmgcp = gcpmgcp.NewMGCP(localEntityCEM, h.OnMGCPEvent)
 	h.myService.AddUseCase(h.ucgcpmgcp)
-	h.uccemvabd = vabd.NewVABD(localEntityCEM, h.OnVABDEvent)
-	h.myService.AddUseCase(h.uccemvabd)
-	h.uccemvapd = vapd.NewVAPD(localEntityCEM, h.OnVAPDEvent)
-	h.myService.AddUseCase(h.uccemvapd)
+	// h.uccemvabd = vabd.NewVABD(localEntityCEM, h.OnVABDEvent)
+	// h.myService.AddUseCase(h.uccemvabd)
+	// h.uccemvapd = vapd.NewVAPD(localEntityCEM, h.OnVAPDEvent)
+	// h.myService.AddUseCase(h.uccemvapd)
 
 	localEntitySME := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeSubMeterElectricity)
 	h.ucmumpc = mumpc.NewMPC(localEntitySME, h.OnMPCEvent)
@@ -150,7 +151,6 @@ func (h *hems) run() {
 	_ = h.uccslpp.SetFailsafeProductionActivePowerLimit(3000, true)
 	_ = h.uccslpp.SetFailsafeDurationMinimum(2*time.Hour, true)
 
-	//_ = h.ucmamgcp.
 	if len(remoteSki) == 0 {
 		os.Exit(0)
 	}
@@ -309,47 +309,47 @@ func (h *hems) OnLPPEvent(ski string, device spineapi.DeviceRemoteInterface, ent
 	}
 }
 
-// Cem VABD Event Handler
+// // Cem VABD Event Handler
 
-func (h *hems) OnVABDEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	switch event {
-	case vabd.DataUpdateEnergyCharged:
-		if energy, err := h.uccemvabd.EnergyCharged(entity); err == nil {
-			fmt.Println("New VABD Energy Charged set to", energy, "Wh")
-		}
-	case vabd.DataUpdateEnergyDischarged:
-		if energy, err := h.uccemvabd.EnergyDischarged(entity); err == nil {
-			fmt.Println("New VABD Energy Discharged set to", energy, "Wh")
-		}
-	case vabd.DataUpdatePower:
-		if power, err := h.uccemvabd.Power(entity); err == nil {
-			fmt.Println("New VABD Power set to", power, "W")
-		}
-	case vabd.DataUpdateStateOfCharge:
-		if soc, err := h.uccemvabd.StateOfCharge(entity); err == nil {
-			fmt.Println("New VABD State of Charge set to", soc, "%")
-		}
-	}
-}
+// func (h *hems) OnVABDEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+// 	switch event {
+// 	case vabd.DataUpdateEnergyCharged:
+// 		if energy, err := h.uccemvabd.EnergyCharged(entity); err == nil {
+// 			fmt.Println("New VABD Energy Charged set to", energy, "Wh")
+// 		}
+// 	case vabd.DataUpdateEnergyDischarged:
+// 		if energy, err := h.uccemvabd.EnergyDischarged(entity); err == nil {
+// 			fmt.Println("New VABD Energy Discharged set to", energy, "Wh")
+// 		}
+// 	case vabd.DataUpdatePower:
+// 		if power, err := h.uccemvabd.Power(entity); err == nil {
+// 			fmt.Println("New VABD Power set to", power, "W")
+// 		}
+// 	case vabd.DataUpdateStateOfCharge:
+// 		if soc, err := h.uccemvabd.StateOfCharge(entity); err == nil {
+// 			fmt.Println("New VABD State of Charge set to", soc, "%")
+// 		}
+// 	}
+// }
 
-// Cem VAPD Event Handler
+// // Cem VAPD Event Handler
 
-func (h *hems) OnVAPDEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
-	switch event {
-	case vapd.DataUpdatePVYieldTotal:
-		if yield, err := h.uccemvapd.PVYieldTotal(entity); err == nil {
-			fmt.Println("New VAPD PV Yield Total set to", yield, "Wh")
-		}
-	case vapd.DataUpdatePowerNominalPeak:
-		if peak, err := h.uccemvapd.PowerNominalPeak(entity); err == nil {
-			fmt.Println("New VAPD Power Nominal Peak set to", peak, "W")
-		}
-	case vapd.DataUpdatePower:
-		if power, err := h.uccemvapd.Power(entity); err == nil {
-			fmt.Println("New VAPD Power set to", power, "W")
-		}
-	}
-}
+// func (h *hems) OnVAPDEvent(ski string, device spineapi.DeviceRemoteInterface, entity spineapi.EntityRemoteInterface, event api.EventType) {
+// 	switch event {
+// 	case vapd.DataUpdatePVYieldTotal:
+// 		if yield, err := h.uccemvapd.PVYieldTotal(entity); err == nil {
+// 			fmt.Println("New VAPD PV Yield Total set to", yield, "Wh")
+// 		}
+// 	case vapd.DataUpdatePowerNominalPeak:
+// 		if peak, err := h.uccemvapd.PowerNominalPeak(entity); err == nil {
+// 			fmt.Println("New VAPD Power Nominal Peak set to", peak, "W")
+// 		}
+// 	case vapd.DataUpdatePower:
+// 		if power, err := h.uccemvapd.Power(entity); err == nil {
+// 			fmt.Println("New VAPD Power set to", power, "W")
+// 		}
+// 	}
+// }
 
 // Monitoring Appliance MGCP Event Handler
 

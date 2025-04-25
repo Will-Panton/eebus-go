@@ -22,7 +22,7 @@
 
     <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
-      <label class="device-select-label">{{ selectedSki }}</label>
+      <label class="device-select-label">{{ readableSKI( selectedSki ) }}</label>
       <label class="device-select-label">ID:</label>
       <label class="device-select-label">{{ deviceId }}</label>
       <label class="device-select-label">Device Brand:</label>
@@ -125,13 +125,13 @@
           <label>{{ selectedMs['MGCP'].PowerLimitationFactor ?? 0 }} %</label>
 
           <label>Power:</label>
-          <label>{{ selectedMs['MGCP'].Power ?? 0 }} W</label>
+          <label>{{ formatted( selectedMs['MGCP'].Power ?? 0 ) }} W</label>
 
           <label>Energy FeedIn:</label>
-          <label>{{ selectedMs['MGCP'].EnergyFeedIn ?? 0 }} Wh</label>
+          <label>{{ formatted( selectedMs['MGCP'].EnergyFeedIn ?? 0 ) }} Wh</label>
 
           <label>Energy Consumed:</label>
-          <label>{{ selectedMs['MGCP'].EnergyConsumed ?? 0 }} Wh</label>
+          <label>{{ formatted( selectedMs['MGCP'].EnergyConsumed ?? 0 ) }} Wh</label>
 
           <label>Currents per Phase:</label>
           <label>{{ ! selectedMs['MGCP'].CurrentPerPhase ? '0' : selectedMs['MGCP'].CurrentPerPhase[0] }} A,
@@ -816,6 +816,21 @@
 
       this.productionHeartbeatEnabled = ! this.productionHeartbeatEnabled;
     }
+
+    public readableSKI( ski: string ): string {
+			if ( 40 < ski.length )
+				return ski;
+
+			var parts: string[] = [];
+			for ( var i = 0; i < 10; i++ )
+				parts[i] = ski.substring( 4*i, 4*i +4 );
+
+			return parts.join( ' ' );
+		}
+
+    public formatted( val: number ): string {
+			return new Intl.NumberFormat( 'en-US' ).format( val );
+		}
   }
 
   export default toNative( ControlBoxPanel )
