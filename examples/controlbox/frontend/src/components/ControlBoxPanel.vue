@@ -80,8 +80,7 @@
           <div></div>
 
           <label>Received Heartbeat:</label>
-          <span v-bind:class = "(consumptionHeartbeat)?'pulse heartbeat':'pulse'">&#9673;</span>
-          <!-- <button type="button" @click="toggleConsumptionHeartbeat">{{ consumptionHeartbeatEnabled ? 'Stop' : 'Start' }}</button> -->
+          <span class="heartbeat-indicator"><span :key="consumptionHeartbeatCount" class="pulse heartbeat">&#9673;</span> {{ consumptionHeartbeatCount }}</span>
           <div></div>
         </div>
       </div>
@@ -112,8 +111,7 @@
           <div></div>
 
           <label>Received Heartbeat:</label>
-          <span v-bind:class = "(productionHeartbeat)?'pulse heartbeat':'pulse'">&#9673;</span>
-          <!-- <button type="button" @click="toggleProductionHeartbeat">{{ productionHeartbeatEnabled ? 'Stop' : 'Start' }}</button> -->
+          <span class="heartbeat-indicator"><span :key="productionHeartbeatCount" class="pulse heartbeat">&#9673;</span> {{ productionHeartbeatCount }}</span>
           <div></div>
         </div>
       </div>
@@ -410,7 +408,7 @@
 
     public get deviceId() {
       if ( "" < this.selectedSki ) {
-        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        var remoteService = this.remoteServices?.find( rs => rs.ski == this.selectedSki );
         return remoteService?.identifier ?? "";
       }
       else {
@@ -420,7 +418,7 @@
 
     public get deviceBrand() {
       if ( "" < this.selectedSki ) {
-        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        var remoteService = this.remoteServices?.find( rs => rs.ski == this.selectedSki );
         return remoteService?.brand ?? "";
       }
       else {
@@ -430,7 +428,7 @@
 
     public get deviceType() {
       if ( "" < this.selectedSki ) {
-        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        var remoteService = this.remoteServices?.find( rs => rs.ski == this.selectedSki );
         return remoteService?.type ?? "";
       }
       else {
@@ -440,7 +438,7 @@
 
     public get deviceModel() {
       if ( "" < this.selectedSki ) {
-        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        var remoteService = this.remoteServices?.find( rs => rs.ski == this.selectedSki );
         return remoteService?.model ?? "";
       }
       else {
@@ -450,7 +448,7 @@
 
     public get deviceSerial() {
       if ( "" < this.selectedSki ) {
-        var remoteService = this.remoteServices.find( rs => rs.ski == this.selectedSki );
+        var remoteService = this.remoteServices?.find( rs => rs.ski == this.selectedSki );
         return remoteService?.serial ?? "";
       }
       else {
@@ -461,9 +459,9 @@
     public consumptionNominalMax: {[key: string]: number} = {};
     public productionNominalMax:  {[key: string]: number} = {};
 
-    public consumptionHeartbeat:        boolean = false;
+    public consumptionHeartbeatCount:   number = 0;
     public consumptionHeartbeatEnabled: boolean = true;
-    public productionHeartbeat:         boolean = false;
+    public productionHeartbeatCount:    number = 0;
     public productionHeartbeatEnabled:  boolean = true;
 
     private socket: WebSocket | undefined;
@@ -574,15 +572,13 @@
           case MessageType.GetConsumptionHeartbeat: {
             this.updateDeviceData( message.UseCase! );
             this.sendNotification( MessageType.GetAllData, message.UseCase );
-            this.consumptionHeartbeat = true;
-            setTimeout( () => this.consumptionHeartbeat = false, 1000 );
+            this.consumptionHeartbeatCount++;
             break;
           }
           case MessageType.GetProductionHeartbeat: {
             this.updateDeviceData( message.UseCase! );
             this.sendNotification( MessageType.GetAllData, message.UseCase );
-            this.productionHeartbeat = true;
-            setTimeout( () => this.productionHeartbeat = false, 1000 );
+            this.productionHeartbeatCount++;
             break;
           }
           case MessageType.GetPowerLimitationFactor: {
@@ -907,7 +903,14 @@
   .heartbeat {
     animation-name: heartbeat;
     animation-duration: 1s;
-    /* animation-iteration-count: infinite; */
+    animation-fill-mode: forwards;
+  }
+
+  .heartbeat-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
   }
 
   @keyframes heartbeat {
