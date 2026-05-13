@@ -168,6 +168,8 @@ func sendData(h *controlbox, ski string, uc string) {
 
 		frontend.sendValue(ski, GetConsumptionFailsafeDuration, "LPC", float64(h.consumptionFailsafeLimits.Duration/time.Second))
 
+		frontend.sendValue(ski, GetConsumptionNominalMax, "LPC", h.consumptionNominalMax)
+
 	case "LPP":
 		frontend.sendLimit(ski, GetProductionLimit, "LPP", ucapi.LoadLimit{
 			IsActive: h.productionLimits.IsActive,
@@ -177,6 +179,8 @@ func sendData(h *controlbox, ski string, uc string) {
 		frontend.sendValue(ski, GetProductionFailsafeValue, "LPP", h.productionFailsafeLimits.Value)
 
 		frontend.sendValue(ski, GetProductionFailsafeDuration, "LPP", float64(h.productionFailsafeLimits.Duration/time.Second))
+
+		frontend.sendValue(ski, GetProductionNominalMax, "LPP", h.productionNominalMax)
 
 	default:
 		return
