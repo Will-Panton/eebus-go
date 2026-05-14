@@ -16,14 +16,10 @@ In contrast to the installation instructions in the enbility repository, the fol
 
 The easiest way to start both HEMS and the controlbox simulator is to open the project in Visual Studio Code and create a `.vscode` directory in the root directory. Inside `.vscode`, create a file named `launch.json`, with content similar to the following. The SKI parameter for `hems` must, of course, be replaced with the respective one of the controlbox simulator, which can be easily read from its web frontend.
 
-```{
-    // Verwendet IntelliSense zum Ermitteln möglicher Attribute.
-    // Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.
-    // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
+```json
+{
     "version": "0.2.0",
     "configurations": [
-        
-
         {
             "name": "Launch HEMS",
             "type": "go",
@@ -45,3 +41,85 @@ The easiest way to start both HEMS and the controlbox simulator is to open the p
     ]
 }
 ```
+
+## Ohme Testing
+
+### 1. Sync vendors
+
+```sh
+go mod vendor
+```
+
+### 2. Patch the Ohme HP handshake speed limitation
+
+The Ohme HP requires a longer TLS handshake timeout. In the vendored dependency:
+
+**File:** `vendor/github.com/enbility/ship-go/hub/hub_connections.go`
+
+**Line 160** — replace:
+
+```go
+HandshakeTimeout: 5 * time.Second,
+```
+
+with:
+
+```go
+HandshakeTimeout: 60 * time.Second,
+```
+
+### 3. Build the controlbox
+
+**Linux/macOS:**
+
+```sh
+cd examples/controlbox && go build -o controlbox .
+```
+
+**Windows (cmd):**
+
+```cmd
+cd examples\controlbox && go build -o controlbox.exe .
+```
+
+### 4. Run the controlbox
+
+#### 4.1 Ensure nothing is already running on the required ports
+
+**Linux/macOS:**
+
+```sh
+lsof -i :4712 -i :7080 2>/dev/null
+```
+
+If a process is listed, kill it:
+
+```sh
+kill -9 <PID>
+```
+
+**Windows (cmd/PowerShell):**
+
+```cmd
+netstat -ano | findstr ":4712 :7080"
+```
+
+If a process is listed, kill it using the PID from the last column:
+
+```cmd
+taskkill /F /PID <PID>
+```
+
+#### 4.2 Start the backend
+
+```sh
+go run . 4712 certs/cert.pem certs/key.pem
+```
+
+#### 4.3 Start the frontend
+
+```sh
+npm run dev
+```
+
+#### 4.4 Open the frontend in the browser
