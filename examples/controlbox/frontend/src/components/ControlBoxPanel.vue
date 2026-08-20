@@ -20,6 +20,56 @@
       <h3>No devices found</h3>
     </div>
 
+    <div class="pairing">
+      <h3>SHIP Pairing (devZ announcement)</h3>
+      <div class="form-line2">
+        <label>devA SHIP ID:</label>
+        <input type="text" v-model="pairingDevAShipID" :disabled="pairingStatus?.Announcing" />
+
+        <label>devA Fingerprint:</label>
+        <input type="text" v-model="pairingDevAFingerprint" :disabled="pairingStatus?.Announcing" />
+
+        <label>devA Secret:</label>
+        <input type="text" v-model="pairingDevASecret" :disabled="pairingStatus?.Announcing" />
+      </div>
+      <div class="form-line2">
+        <button type="button" @click="startPairing" :disabled="pairingStatus?.Announcing">Start</button>
+        <button type="button" @click="stopPairing" :disabled="!pairingStatus?.Announcing">Stop</button>
+      </div>
+      <div v-if="!!pairingStatus" class="form-line2">
+        <label>Announcing:</label>
+        <label>{{ pairingStatus.Announcing ? 'yes' : 'no' }}</label>
+
+        <label>Own SHIP ID:</label>
+        <label>{{ pairingStatus.OwnShipID }}</label>
+
+        <label>Own Fingerprint:</label>
+        <label>{{ pairingStatus.OwnFingerprint }}</label>
+
+        <template v-if="pairingStatus.Announcing">
+          <label>devA SHIP ID:</label>
+          <label>{{ pairingStatus.DevAShipID }}</label>
+
+          <label>devA Fingerprint:</label>
+          <label>{{ pairingStatus.DevAFingerprint }}</label>
+
+          <label>Trust Nonce:</label>
+          <label>{{ pairingStatus.TrustNonce }}</label>
+
+          <label>Digest:</label>
+          <label>{{ pairingStatus.Digest }}</label>
+
+          <label>mDNS Instance:</label>
+          <label>{{ pairingStatus.Instance }}</label>
+        </template>
+
+        <template v-if="'' < pairingStatus.Error">
+          <label>Error:</label>
+          <label class="pairing-error">{{ pairingStatus.Error }}</label>
+        </template>
+      </div>
+    </div>
+
     <div v-if="'' < selectedSki" class="devices">
       <label class="device-select-label">SKI:</label>
       <label class="device-select-label">{{ readableSKI( selectedSki ) }}</label>
@@ -229,7 +279,11 @@
 	  GetEnergyConsumed              = 33,
 	  GetCurrentPerPhase             = 34,
 	  GetVoltagePerPhase             = 35,
-	  GetFrequency                   = 36
+	  GetFrequency                   = 36,
+    StartPairing                   = 37,
+    StopPairing                    = 38,
+    GetPairingStatus               = 39,
+    PairingStatus                  = 40
 }
 
   interface Limits {
@@ -277,6 +331,24 @@
 
   type UseCaseInfos = {[key:string]:UseCaseInfo[]}
 
+  interface PairingStatus {
+    Announcing:      boolean,
+    OwnShipID:       string,
+    OwnFingerprint:  string,
+    DevAShipID:      string,
+    DevAFingerprint: string,
+    TrustNonce:      string,
+    Digest:          string,
+    Instance:        string,
+    Error:           string
+  }
+
+  interface PairingRequest {
+    DevAShipID:      string,
+    DevAFingerprint: string,
+    DevASecret:      string
+  }
+
   interface Message {
     SKI:           string,
     Type:          MessageType,
@@ -287,7 +359,9 @@
     ServiceList?:  RemoteService[],
     EntityInfos?:  EntityInfo[],
     UseCaseInfos?: UseCaseInfos
-    UseCase?:      string
+    UseCase?:      string,
+    Pairing?:        PairingStatus,
+    PairingRequest?: PairingRequest
   }
 
   type UCLimits       = {[key:string]:Limits};
@@ -459,6 +533,11 @@
     public consumptionNominalMax: {[key: string]: number} = {};
     public productionNominalMax:  {[key: string]: number} = {};
 
+    public pairingStatus: PairingStatus | undefined = undefined;
+    public pairingDevAShipID = "";
+    public pairingDevAFingerprint = "";
+    public pairingDevASecret = "";
+
     public consumptionHeartbeatCount:   number = 0;
     public consumptionHeartbeatEnabled: boolean = true;
     public productionHeartbeatCount:    number = 0;
@@ -473,6 +552,7 @@
       this.socket.onopen = () => {
           console.log( "Successfully Connected" );
           this.sendNotification( MessageType.GetEntityInfos );
+          this.sendNotification( MessageType.GetPairingStatus );
       };
       
       this.socket.onclose = event => {
@@ -621,7 +701,11 @@
             this.monitorings[message.SKI][message.UseCase!].Frequency = message.Value ?? 0;
             break;
           }
-        }   
+          case MessageType.PairingStatus: {
+            this.pairingStatus = message.Pairing;
+            break;
+          }
+        }
       }
     }
 
@@ -813,6 +897,28 @@
       this.productionHeartbeatEnabled = ! this.productionHeartbeatEnabled;
     }
 
+    public startPairing() {
+      if ( ! this.socket )
+        return;
+
+      let command: Message = {
+        SKI:  this.selectedSki,
+        Type: MessageType.StartPairing,
+        PairingRequest: {
+          DevAShipID:      this.pairingDevAShipID,
+          DevAFingerprint: this.pairingDevAFingerprint,
+          DevASecret:      this.pairingDevASecret
+        }
+      };
+
+      this.socket.send( JSON.stringify( command ) );
+      this.pairingDevASecret = "";
+    }
+
+    public stopPairing() {
+      this.sendNotification( MessageType.StopPairing );
+    }
+
     public readableSKI( ski: string ): string {
 			if ( 40 < ski.length )
 				return ski;
@@ -943,5 +1049,17 @@
   .device-select-label {
     text-align: left;
     line-height: 2.2em;
+  }
+
+  .pairing {
+    margin: 15px 0;
+    text-align: left;
+  }
+  .pairing input {
+    font-size: initial;
+    width: 300px;
+  }
+  .pairing-error {
+    color: rgb(200,0,0);
   }
 </style>

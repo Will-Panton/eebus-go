@@ -105,6 +105,14 @@ func (websocketClient *WebsocketClient) sendLimit(ski string, messageType int, u
 	return websocketClient.sendMessage(answer)
 }
 
+func (websocketClient *WebsocketClient) sendPairingStatus(status PairingStatusPayload) error {
+	answer := Message{
+		Type:    PairingStatus,
+		Pairing: &status}
+
+	return websocketClient.sendMessage(answer)
+}
+
 func (websocketClient *WebsocketClient) sendServiceList(messageType int, services []shipapi.RemoteService) error {
 	answer := Message{
 		Type:        messageType,

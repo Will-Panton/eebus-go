@@ -41,6 +41,14 @@ const (
 	shipPairingAutoStopAfter = 15 * time.Minute
 )
 
+// PairingRequest carries the devA-specific details an administrator collects
+// (SHIP Pairing Service TS 12) to trigger Start() from the frontend.
+type PairingRequest struct {
+	DevAShipID      string
+	DevAFingerprint string
+	DevASecret      string
+}
+
 type PairingStatusPayload struct {
 	Announcing      bool
 	OwnShipID       string

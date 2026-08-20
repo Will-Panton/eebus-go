@@ -57,6 +57,10 @@ const (
 	GetCurrentPerPhase             = 34
 	GetVoltagePerPhase             = 35
 	GetFrequency                   = 36
+	StartPairing                   = 37
+	StopPairing                    = 38
+	GetPairingStatus               = 39
+	PairingStatus                  = 40
 )
 
 type RemoteInfo struct {
@@ -79,16 +83,18 @@ type EntityInfo struct {
 }
 
 type Message struct {
-	SKI          string
-	Type         int
-	Text         string
-	Limit        ucapi.LoadLimit
-	Value        float64
-	Values       []float64
-	ServiceList  []shipapi.RemoteService
-	EntityInfos  []EntityInfo
-	UseCaseInfos map[string][]UseCaseInfo
-	UseCase      string
+	SKI            string
+	Type           int
+	Text           string
+	Limit          ucapi.LoadLimit
+	Value          float64
+	Values         []float64
+	ServiceList    []shipapi.RemoteService
+	EntityInfos    []EntityInfo
+	UseCaseInfos   map[string][]UseCaseInfo
+	UseCase        string
+	Pairing        *PairingStatusPayload
+	PairingRequest *PairingRequest
 }
 
 func readData(h *controlbox, entity spineapi.EntityRemoteInterface, ucs []string) {
@@ -224,6 +230,10 @@ func serveWs(h *controlbox, w http.ResponseWriter, r *http.Request) {
 
 	sendData(h, "", "")
 
+	if h.pairing != nil {
+		frontend.sendPairingStatus(h.pairing.Status())
+	}
+
 	reader(h, ws)
 }
 
@@ -324,6 +334,19 @@ func reader(h *controlbox, ws *websocket.Conn) {
 			h.uclpc.StopHeartbeat()
 		case StartConsumptionHeartbeat:
 			h.uclpc.StartHeartbeat()
+		case StartPairing:
+			if h.pairing != nil && data.PairingRequest != nil {
+				status := h.pairing.Start(data.PairingRequest.DevAShipID, data.PairingRequest.DevAFingerprint, data.PairingRequest.DevASecret)
+				frontend.sendPairingStatus(status)
+			}
+		case StopPairing:
+			if h.pairing != nil {
+				frontend.sendPairingStatus(h.pairing.Stop())
+			}
+		case GetPairingStatus:
+			if h.pairing != nil {
+				frontend.sendPairingStatus(h.pairing.Status())
+			}
 		}
 
 		frontend.sendNotification("", Acknowledge, "")
