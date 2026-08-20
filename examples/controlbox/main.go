@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"os/signal"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -277,6 +280,54 @@ func (h *controlbox) run() {
 
 	h.myService.SetAutoAccept(true)
 	h.myService.Start()
+}
+
+// Pairing command loop
+//
+// Non-UI trigger for the SHIP pairing announcer: reads commands from stdin so
+// a pairing can be started/stopped/inspected without the Vue frontend.
+func (h *controlbox) runPairingCommandLoop() {
+	fmt.Println("Pairing commands: pairing start <devAShipId> <devAFingerprint> <devASecretHex> | pairing stop | pairing status")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		h.handlePairingCommand(scanner.Text())
+	}
+}
+
+func (h *controlbox) handlePairingCommand(line string) {
+	fields := strings.Fields(line)
+	if len(fields) == 0 || fields[0] != "pairing" {
+		return
+	}
+	if len(fields) < 2 {
+		fmt.Println("usage: pairing <start|stop|status> ...")
+		return
+	}
+
+	var status PairingStatusPayload
+	switch fields[1] {
+	case "start":
+		if len(fields) != 5 {
+			fmt.Println("usage: pairing start <devAShipId> <devAFingerprint> <devASecretHex>")
+			return
+		}
+		status = h.pairing.Start(fields[2], fields[3], fields[4])
+	case "stop":
+		status = h.pairing.Stop()
+	case "status":
+		status = h.pairing.Status()
+	default:
+		fmt.Println("unknown pairing command:", fields[1])
+		return
+	}
+
+	printed, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		fmt.Println("failed to format pairing status:", err)
+		return
+	}
+	fmt.Println(string(printed))
 }
 
 // EEBUSServiceHandler
@@ -748,6 +799,8 @@ func main() {
 
 	h := controlbox{}
 	h.run()
+
+	go h.runPairingCommandLoop()
 
 	setupRoutes(&h)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(httpdPort), nil))
