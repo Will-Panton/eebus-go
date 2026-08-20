@@ -362,7 +362,18 @@ func (h *controlbox) VisibleRemoteServicesUpdated(service api.ServiceInterface, 
 	for _, element := range entries {
 		fmt.Println("Remote SKI: " + element.Ski)
 		service := h.myService.RemoteServiceForSKI(element.Ski)
-		service.SetTrusted(true)
+
+		// SetTrusted alone only takes effect on the next mDNS update for this
+		// SKI: ship-go's connectionsHub checks Trusted() before this callback
+		// runs, so it would miss the entry it was just discovered from.
+		// RegisterRemoteSKI both trusts and queues a connection attempt now.
+		//
+		// Only do this once per SKI: RegisterRemoteSKI calls
+		// mdns.RequestMdnsEntries(), which re-triggers this very callback, so
+		// calling it unconditionally on every update is a feedback loop.
+		if !service.Trusted() {
+			h.myService.RegisterRemoteSKI(element.Ski)
+		}
 	}
 
 	h.currentRemoteServices = entries
