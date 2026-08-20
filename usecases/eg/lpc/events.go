@@ -102,6 +102,26 @@ func (e *LPC) connected(entity spineapi.EntityRemoteInterface) {
 			logging.Log().Debug(err)
 		}
 	}
+
+	// OHME LOCAL PATCH - not upstream.
+	//
+	// Scenario 4 carries the nominal maximum in electricalConnectionCharacteristic-
+	// ListData, where read is mandatory for the Controllable System. Nothing here
+	// read it, and ConsumptionNominalMax() only ever consults the local cache, so
+	// the value was reported as unavailable however correctly the remote published
+	// it. Subscribing alone is not enough: the characteristic is a device rating,
+	// so a conforming CS sets it once and has no change to notify afterwards.
+	if electricalConnection, err := client.NewElectricalConnection(e.LocalEntity, entity); err == nil {
+		if !electricalConnection.HasSubscription() {
+			if _, err := electricalConnection.Subscribe(); err != nil {
+				logging.Log().Debug(err)
+			}
+		}
+
+		if _, err := electricalConnection.RequestCharacteristics(nil, nil); err != nil {
+			logging.Log().Debug(err)
+		}
+	}
 }
 
 // the load control limit description data was updated

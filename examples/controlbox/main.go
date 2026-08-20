@@ -185,6 +185,8 @@ type controlbox struct {
 
 	currentRemoteServices []shipapi.RemoteService
 
+	pairing *ShipPairing
+
 	mutex sync.Mutex
 }
 
@@ -251,6 +253,12 @@ func (h *controlbox) run() {
 		return
 	}
 
+	h.pairing = NewShipPairing(
+		h.myService.Configuration().Identifier(),
+		certificate.Certificate[0],
+		h.myService.Configuration().MdnsServiceName(),
+	)
+
 	localEntity := h.myService.LocalDevice().EntityForType(model.EntityTypeTypeGridGuard)
 	h.uclpc = lpc.NewLPC(localEntity, h.OnLPCEvent)
 	h.myService.AddUseCase(h.uclpc)
@@ -267,6 +275,7 @@ func (h *controlbox) run() {
 	h.remoteInfos = map[string]RemoteInfo{}
 	h.useCaseInfos = map[string][]UseCaseInfo{}
 
+	h.myService.SetAutoAccept(true)
 	h.myService.Start()
 }
 
@@ -277,12 +286,20 @@ func (h *controlbox) RemoteSKIConnected(service api.ServiceInterface, ski string
 	fmt.Println("RemoteSKIConnected: " + ski)
 	h.isConnected[ski] = true
 
+	if h.pairing != nil {
+		h.pairing.NoteConnected(ski)
+	}
+
 	frontend.sendText(SelectService, ski)
 }
 
 func (h *controlbox) RemoteSKIDisconnected(service api.ServiceInterface, ski string) {
 	fmt.Println("RemoteSKIDisconnected: " + ski)
 	h.isConnected[ski] = false
+
+	if h.pairing != nil {
+		h.pairing.NoteDisconnected(ski)
+	}
 
 	frontend.sendNotification("", ServiceListChanged, "")
 }
@@ -415,6 +432,15 @@ func (h *controlbox) readConsumptionNominalMax(entity spineapi.EntityRemoteInter
 		fmt.Println("Failed to get consumption nominal max", err)
 		return
 	}
+
+	// OHME LOCAL PATCH - not upstream.
+	//
+	// This is the only path that reads the nominal maximum after the value has
+	// actually arrived: readData() runs on UseCaseSupportUpdate, which is before
+	// the characteristic has been fetched, so it fails there and leaves the cache
+	// at zero. Without this the panel is served that zero by sendData() on every
+	// GetAllData, overwriting the value this function had just sent.
+	h.consumptionNominalMax = nominal
 
 	frontend.sendValue(entity.Device().Ski(), GetConsumptionNominalMax, "LPC", nominal)
 }
@@ -736,19 +762,19 @@ func main() {
 // Logging interface
 
 func (h *controlbox) Trace(args ...interface{}) {
-	// h.print("TRACE", args...)
+	h.print("TRACE", args...)
 }
 
 func (h *controlbox) Tracef(format string, args ...interface{}) {
-	// h.printFormat("TRACE", format, args...)
+	h.printFormat("TRACE", format, args...)
 }
 
 func (h *controlbox) Debug(args ...interface{}) {
-	// h.print("DEBUG", args...)
+	h.print("DEBUG", args...)
 }
 
 func (h *controlbox) Debugf(format string, args ...interface{}) {
-	// h.printFormat("DEBUG", format, args...)
+	h.printFormat("DEBUG", format, args...)
 }
 
 func (h *controlbox) Info(args ...interface{}) {
